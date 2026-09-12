@@ -1,0 +1,99 @@
+// Kolo — ROSCA Data Model
+// Matches PRD §7 exactly
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  nimiqAddress  String   @unique @map("nimiq_address")
+  displayName   String?  @map("display_name")
+  language      String   @default("en")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Relations
+  organizedCircles Circle[]       @relation("CircleOrganizer")
+  memberships      Membership[]
+  contributions    Contribution[]
+  recipientRounds  Round[]        @relation("RoundRecipient")
+
+  @@map("users")
+}
+
+model Circle {
+  id                 String       @id @default(uuid())
+  name               String
+  organizerId        String       @map("organizer_id")
+  contributionAmount Float        @map("contribution_amount")
+  currency           String       @default("NIM")
+  frequency          String       // 'weekly' | 'biweekly' | 'monthly'
+  minMembers         Int          @default(3) @map("min_members")
+  maxMembers         Int          @map("max_members")
+  status             String       @default("forming") // 'forming' | 'active' | 'completed' | 'cancelled'
+  payoutOrder        String?      @map("payout_order") // JSON string: ordered array of user_ids
+  startDate          DateTime?    @map("start_date")
+  createdAt          DateTime     @default(now()) @map("created_at")
+
+  // Relations
+  organizer   User         @relation("CircleOrganizer", fields: [organizerId], references: [id])
+  memberships Membership[]
+  rounds      Round[]
+
+  @@map("circles")
+}
+
+model Membership {
+  id          String    @id @default(uuid())
+  circleId    String    @map("circle_id")
+  userId      String    @map("user_id")
+  status      String    @default("pending") // 'pending' | 'approved' | 'rejected' | 'removed'
+  requestedAt DateTime  @default(now()) @map("requested_at")
+  decidedAt   DateTime? @map("decided_at")
+  joinedOrder Int?      @map("joined_order")
+
+  // Relations
+  circle Circle @relation(fields: [circleId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([circleId, userId])
+  @@map("memberships")
+}
+
+model Round {
+  id          String    @id @default(uuid())
+  circleId    String    @map("circle_id")
+  roundNumber Int       @map("round_number")
+  recipientId String    @map("recipient_id")
+  dueDate     DateTime  @map("due_date")
+  status      String    @default("open") // 'open' | 'completed' | 'missed_partial' | 'cancelled'
+  completedAt DateTime? @map("completed_at")
+
+  // Relations
+  circle        Circle         @relation(fields: [circleId], references: [id])
+  recipient     User           @relation("RoundRecipient", fields: [recipientId], references: [id])
+  contributions Contribution[]
+
+  @@map("rounds")
+}
+
+model Contribution {
+  id             String    @id @default(uuid())
+  roundId        String    @map("round_id")
+  contributorId  String    @map("contributor_id")
+  expectedAmount Float     @map("expected_amount")
+  txHash         String?   @unique @map("tx_hash")
+  status         String    @default("pending") // 'pending' | 'confirmed' | 'failed'
+  confirmedAt    DateTime? @map("confirmed_at")
+
+  // Relations
+  round       Round @relation(fields: [roundId], references: [id])
+  contributor User  @relation(fields: [contributorId], references: [id])
+
+  @@map("contributions")
+}

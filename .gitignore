@@ -1,0 +1,34 @@
+# Node modules & dependencies
+node_modules/
+.pnpm-store/
+
+# Next.js build output & cache
+.next/
+out/
+build/
+dist/
+
+# Environment files & local configs
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Databases & SQLite data
+*.db
+*.db-journal
+dev.db
+dev.db-journal
+prisma/dev.db
+
+# System & IDE files
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Next.js telemetry / cache
+.next/cache/

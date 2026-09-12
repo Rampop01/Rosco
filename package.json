@@ -1,0 +1,19 @@
+{
+  "name": "kolo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Kolo — A non-custodial digital ROSCA built as a Nimiq Pay Mini App",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "build": "npm run build -w backend && npm run build -w frontend",
+    "db:migrate": "npm run db:migrate -w backend",
+    "db:seed": "npm run db:seed -w backend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
