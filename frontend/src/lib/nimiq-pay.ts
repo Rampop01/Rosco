@@ -159,6 +159,10 @@ export function getTheme(): 'light' | 'dark' {
   return 'light';
 }
 
+export function resetWalletAccount(): void {
+  savedAccount = null;
+}
+
 export function isDevMode(): boolean {
   // Now returns false for web browsers because real Nimiq Hub API is active!
   return !(typeof window !== 'undefined' && (window.nimiqPay || true));

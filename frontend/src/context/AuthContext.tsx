@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { initNimiqPay, listAccounts, NimiqAccount } from '../lib/nimiq-pay';
+import { initNimiqPay, listAccounts, resetWalletAccount, NimiqAccount } from '../lib/nimiq-pay';
 import { createSession, getToken, clearToken, User } from '../lib/api';
 
 interface AuthContextType {
@@ -34,19 +34,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await initNimiqPay();
         const storedToken = getToken();
         if (storedToken) {
-          const accounts = await listAccounts();
-          if (accounts.length > 0) {
-            const primary = accounts[0];
-            setWallet(primary);
-            try {
-              const res = await createSession(primary.address, primary.label);
-              setUser(res.user);
-              setTokenState(res.token);
-            } catch (err) {
-              console.warn('Failed to restore session:', err);
-              clearToken();
-            }
-          }
+          // If we had a stored token from an old mock session, clear it if no account is explicitly chosen
+          clearToken();
+          resetWalletAccount();
         }
       } catch (err) {
         console.error('Failed to initialize Nimiq Pay auth:', err);
@@ -63,8 +53,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await initNimiqPay();
       const accounts = await listAccounts();
-      if (!accounts.length) {
-        throw new Error('No Nimiq accounts found in wallet');
+      if (!accounts || !accounts.length) {
+        throw new Error('No Nimiq account selected');
       }
       const primary = accounts[0];
       setWallet(primary);
@@ -72,6 +62,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await createSession(primary.address, displayName || primary.label || 'Rosco User');
       setUser(res.user);
       setTokenState(res.token);
+    } catch (err: any) {
+      console.warn('Wallet connection cancelled or failed:', err);
+      disconnect();
     } finally {
       setIsLoading(false);
     }
@@ -79,6 +72,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const disconnect = () => {
     clearToken();
+    resetWalletAccount();
     setUser(null);
     setWallet(null);
     setTokenState(null);
