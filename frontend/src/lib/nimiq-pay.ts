@@ -1,14 +1,12 @@
+import HubApi from '@nimiq/hub-api';
+
 /**
- * Nimiq Pay Mini App SDK Wrapper
+ * Nimiq Wallet SDK Wrapper for Rosco
  * 
- * Provides a typed interface to the Nimiq Pay SDK injected as window.nimiqPay.
- * The Mini App runs inside Nimiq Pay's webview — the SDK is injected by the host.
- * 
- * Key APIs:
- * - init(): Initialize the Mini App
- * - listAccounts(): Get user's Nimiq wallet addresses
- * - requestPayment(): Trigger the native payment dialog
- * - language: User's preferred language
+ * Supports two real wallet modes:
+ * 1. Nimiq Pay Mobile App: Uses window.nimiqPay injected by the mobile webview host.
+ * 2. Standard Web Browsers (Desktop/Mobile Chrome/Safari): Uses @nimiq/hub-api to trigger 
+ *    the official Nimiq Hub browser pop-up vault (https://hub.nimiq-testnet.com or https://hub.nimiq.com).
  */
 
 // ─── Type Definitions ───────────────────────────────────────────────────────
@@ -37,7 +35,6 @@ interface NimiqPaySDK {
   requestPayment(request: PaymentRequest): Promise<PaymentResult>;
   language: string;
   theme: 'light' | 'dark';
-  onThemeChange?: (theme: 'light' | 'dark') => void;
 }
 
 declare global {
@@ -46,78 +43,123 @@ declare global {
   }
 }
 
-// ─── SDK State ──────────────────────────────────────────────────────────────
+// ─── State ──────────────────────────────────────────────────────────────
 
 let initialized = false;
-let devMode = false;
+let hubApiInstance: HubApi | null = null;
+let savedAccount: NimiqAccount | null = null;
 
-// ─── Dev Mode Mock (for development outside Nimiq Pay) ──────────────────────
+// Default to Nimiq Testnet Hub (or Mainnet based on env)
+const HUB_URL = process.env.NEXT_PUBLIC_NIMIQ_HUB_URL || 'https://hub.nimiq-testnet.com';
 
-const mockSDK: NimiqPaySDK = {
-  async init() {
-    console.log('[Rosco Dev] Nimiq Pay SDK initialized (mock)');
-  },
-  async listAccounts() {
-    // Return a mock testnet address for development
-    return [{
-      address: 'NQ07 0000 0000 0000 0000 0000 0000 0000 0000',
-      label: 'Dev Wallet',
-      balance: 1000,
-    }];
-  },
-  async requestPayment(request: PaymentRequest) {
-    console.log('[Rosco Dev] Payment requested (mock):', request);
-    // Simulate a successful payment in dev mode
-    const mockTxHash = `mock_tx_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-    return {
-      success: true,
-      txHash: mockTxHash,
-    };
-  },
-  language: 'en',
-  theme: 'dark',
-};
+function getHubApi(): HubApi {
+  if (!hubApiInstance) {
+    hubApiInstance = new HubApi(HUB_URL);
+  }
+  return hubApiInstance;
+}
 
 // ─── Public API ─────────────────────────────────────────────────────────────
 
-function getSDK(): NimiqPaySDK {
-  if (typeof window !== 'undefined' && window.nimiqPay) {
-    return window.nimiqPay;
-  }
-  devMode = true;
-  return mockSDK;
-}
-
 export async function initNimiqPay(): Promise<void> {
   if (initialized) return;
-  const sdk = getSDK();
-  await sdk.init();
-  initialized = true;
-  if (devMode) {
-    console.log('[Rosco] Running in dev mode — Nimiq Pay SDK is mocked');
+
+  if (typeof window !== 'undefined' && window.nimiqPay) {
+    await window.nimiqPay.init();
+    console.log('[Rosco] Connected via Nimiq Pay Mobile App Native Webview');
+  } else {
+    // Initialize Nimiq Hub Web API
+    getHubApi();
+    console.log(`[Rosco] Connected via Nimiq Hub Web API (${HUB_URL})`);
   }
+  initialized = true;
 }
 
 export async function listAccounts(): Promise<NimiqAccount[]> {
-  const sdk = getSDK();
-  return sdk.listAccounts();
+  // 1. Native Nimiq Pay Webview
+  if (typeof window !== 'undefined' && window.nimiqPay) {
+    return window.nimiqPay.listAccounts();
+  }
+
+  // 2. Return cached account if user already connected in this session
+  if (savedAccount) {
+    return [savedAccount];
+  }
+
+  // 3. Trigger Nimiq Hub Choose Address Pop-up
+  try {
+    const hub = getHubApi();
+    const chosen = await hub.chooseAddress({
+      appName: 'Rosco',
+    });
+
+    if (chosen && chosen.address) {
+      savedAccount = {
+        address: chosen.address,
+        label: chosen.label || 'Nimiq Wallet',
+      };
+      return [savedAccount];
+    }
+    return [];
+  } catch (err: any) {
+    console.warn('[Rosco] Nimiq Hub account selection cancelled or failed:', err);
+    throw new Error(err?.message || 'Wallet connection was cancelled');
+  }
 }
 
 export async function requestPayment(request: PaymentRequest): Promise<PaymentResult> {
-  const sdk = getSDK();
-  return sdk.requestPayment(request);
+  // 1. Native Nimiq Pay Webview
+  if (typeof window !== 'undefined' && window.nimiqPay) {
+    return window.nimiqPay.requestPayment(request);
+  }
+
+  // 2. Nimiq Hub Web API Checkout Pop-up
+  try {
+    const hub = getHubApi();
+    // Nimiq Hub expects amount in Luna (1 NIM = 100,000 Luna)
+    const lunaAmount = Math.round(request.amount * 100000);
+
+    const result = await hub.checkout({
+      appName: 'Rosco',
+      recipient: request.recipient,
+      value: lunaAmount,
+    });
+
+    if (result && result.hash) {
+      return {
+        success: true,
+        txHash: result.hash,
+      };
+    } else {
+      return {
+        success: false,
+        error: 'Transaction hash missing from Nimiq Hub response',
+      };
+    }
+  } catch (err: any) {
+    console.error('[Rosco] Nimiq Hub payment failed:', err);
+    return {
+      success: false,
+      error: err?.message || 'Payment cancelled by user',
+    };
+  }
 }
 
 export function getLanguage(): string {
-  const sdk = getSDK();
-  return sdk.language;
+  if (typeof window !== 'undefined' && window.nimiqPay) {
+    return window.nimiqPay.language;
+  }
+  return typeof navigator !== 'undefined' ? navigator.language : 'en';
 }
 
 export function getTheme(): 'light' | 'dark' {
-  const sdk = getSDK();
-  return sdk.theme;
+  if (typeof window !== 'undefined' && window.nimiqPay) {
+    return window.nimiqPay.theme;
+  }
+  return 'light';
 }
 
 export function isDevMode(): boolean {
-  return devMode;
+  // Now returns false for web browsers because real Nimiq Hub API is active!
+  return !(typeof window !== 'undefined' && (window.nimiqPay || true));
 }
