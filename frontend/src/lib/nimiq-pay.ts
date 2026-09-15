@@ -184,29 +184,35 @@ function findNimiqAddressFromBrowserState(): string | null {
 }
 
 export function extractNimiqAddressFromResponse(res: any, nativeSdk?: any): string | null {
-  const isNq = (str: any): str is string => typeof str === 'string' && str.trim().startsWith('NQ') && str.trim().length >= 24;
+  const isNq = (str: any): str is string => {
+    if (typeof str !== 'string') return false;
+    const s = str.trim().toUpperCase();
+    return s.startsWith('NQ') && s.replace(/\s+/g, '').length >= 24;
+  };
 
-  if (isNq(res)) return res.trim();
+  const cleanNq = (str: string): string => str.trim().toUpperCase();
+
+  if (isNq(res)) return cleanNq(res);
 
   if (Array.isArray(res) && res.length) {
     const first = res[0];
-    if (isNq(first)) return first.trim();
+    if (isNq(first)) return cleanNq(first);
     if (typeof first === 'object' && first) {
-      if (isNq(first.address)) return first.address.trim();
-      if (isNq(first.account)) return first.account.trim();
-      if (typeof first.account === 'object' && isNq(first.account?.address)) return first.account.address.trim();
+      if (isNq(first.address)) return cleanNq(first.address);
+      if (isNq(first.account)) return cleanNq(first.account);
+      if (typeof first.account === 'object' && isNq(first.account?.address)) return cleanNq(first.account.address);
     }
   }
 
   if (res && typeof res === 'object') {
-    if (isNq(res.address)) return res.address.trim();
-    if (isNq(res.account)) return res.account.trim();
-    if (typeof res.account === 'object' && isNq(res.account?.address)) return res.account.address.trim();
+    if (isNq(res.address)) return cleanNq(res.address);
+    if (isNq(res.account)) return cleanNq(res.account);
+    if (typeof res.account === 'object' && isNq(res.account?.address)) return cleanNq(res.account.address);
 
     if (Array.isArray(res.accounts) && res.accounts.length) {
       const first = res.accounts[0];
-      if (isNq(first)) return first.trim();
-      if (typeof first === 'object' && isNq(first.address)) return first.address.trim();
+      if (isNq(first)) return cleanNq(first);
+      if (typeof first === 'object' && isNq(first.address)) return cleanNq(first.address);
     }
 
     if (res.result) {
@@ -231,7 +237,7 @@ export function extractNimiqAddressFromResponse(res: any, nativeSdk?: any): stri
                    nativeSdk.userAddress ||
                    (typeof nativeSdk.account === 'string' ? nativeSdk.account : null);
 
-    if (isNq(direct)) return direct.trim();
+    if (isNq(direct)) return cleanNq(direct);
   }
 
   return null;
