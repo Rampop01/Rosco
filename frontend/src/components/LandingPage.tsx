@@ -120,7 +120,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onConnectWallet, isLog
       <header className="header">
         <div 
           onClick={isLoggedIn && onGoToDashboard ? onGoToDashboard : () => scrollToSection('hero')} 
-          style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer' }}
         >
           <div className="brand-icon">R</div>
           <span className="brand-title">Rosco</span>
@@ -130,20 +130,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onConnectWallet, isLog
           </div>
         </div>
 
-        <nav className="nav-links">
-          <span className="nav-link" onClick={() => scrollToSection('showcase')}>Video Tour</span>
-          <span className="nav-link" onClick={() => scrollToSection('products')}>Products</span>
-          <span className="nav-link" onClick={() => scrollToSection('calculator')}>Calculator</span>
-          <span className="nav-link" onClick={() => scrollToSection('faq')}>FAQ</span>
-          
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <nav className="nav-links nav-text-links">
+            <span className="nav-link" onClick={() => scrollToSection('showcase')}>Video Tour</span>
+            <span className="nav-link" onClick={() => scrollToSection('products')}>Products</span>
+            <span className="nav-link" onClick={() => scrollToSection('calculator')}>Calculator</span>
+            <span className="nav-link" onClick={() => scrollToSection('faq')}>FAQ</span>
+          </nav>
+
           <button 
             className="btn-primary" 
-            style={{ padding: '0.65rem 1.4rem', fontSize: '0.92rem' }} 
+            style={{ padding: '0.6rem 1.15rem', fontSize: '0.88rem', whiteSpace: 'nowrap' }} 
             onClick={isLoggedIn && onGoToDashboard ? onGoToDashboard : () => onConnectWallet()}
           >
-            {isLoggedIn ? 'Go to Dashboard →' : 'Launch App'}
+            {isLoggedIn ? 'Dashboard →' : 'Launch App'}
           </button>
-        </nav>
+        </div>
       </header>
 
       {/* Balanced Hero Section */}
