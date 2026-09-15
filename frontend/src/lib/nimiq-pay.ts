@@ -56,7 +56,9 @@ async function getHubApi(): Promise<any> {
     try {
       const HubModule = await import('@nimiq/hub-api');
       const HubClass = HubModule.default || (HubModule as any);
-      hubApiInstance = new HubClass(HUB_URL);
+      const PopupBehavior = HubModule.PopupRequestBehavior || (HubModule as any).PopupRequestBehavior;
+      const behavior = PopupBehavior ? new PopupBehavior(undefined, { overlay: false }) : undefined;
+      hubApiInstance = new HubClass(HUB_URL, behavior);
     } catch (err) {
       console.error('[Rosco] Failed to load @nimiq/hub-api:', err);
       throw err;
