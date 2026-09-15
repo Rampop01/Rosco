@@ -282,15 +282,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onConnectWallet, isLog
           </div>
 
           {/* Main Video Slide Viewport */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '2.5rem',
-            padding: '3rem 2.5rem',
-            alignItems: 'center',
-            background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%)',
-            minHeight: '380px'
-          }}>
+          <div className="showcase-viewport">
             {/* Left Content Column */}
             <div>
               <span className="badge" style={{ background: `${currentSlide.color}15`, color: currentSlide.color, border: `1px solid ${currentSlide.color}30`, marginBottom: '1rem' }}>
@@ -404,12 +396,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onConnectWallet, isLog
           </div>
 
           {/* Bottom Slide Nav Thumbnails Bar */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            borderTop: '1px solid #E2E8F0',
-            background: '#F8FAFC'
-          }}>
+          <div className="showcase-tabs">
             {carouselSlides.map((slide, idx) => (
               <div 
                 key={slide.id}
@@ -514,13 +501,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onConnectWallet, isLog
           </p>
         </div>
 
-        <div className="glass-card" style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          gap: '2.5rem',
-          padding: '2.5rem',
-          background: '#F8FAFC'
-        }}>
+        <div className="glass-card calculator-grid">
           <div>
             <div className="form-group" style={{ marginBottom: '1.75rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
@@ -596,14 +577,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onConnectWallet, isLog
               </p>
             </div>
 
-            <div style={{
-              borderTop: '1px solid var(--border-color)',
-              paddingTop: '1.25rem',
-              marginTop: '1.5rem',
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '1rem'
-            }}>
+            <div className="calculator-stats">
               <div>
                 <span className="text-muted" style={{ fontSize: '0.78rem', display: 'block' }}>Circle Duration</span>
                 <strong style={{ fontSize: '1.15rem', color: '#0F172A' }}>{membersCount} {frequency === 'Weekly' ? 'Weeks' : 'Months'}</strong>
