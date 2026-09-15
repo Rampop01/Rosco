@@ -1,5 +1,3 @@
-import HubApi from '@nimiq/hub-api';
-
 /**
  * Nimiq Wallet SDK Wrapper for Rosco
  * 
@@ -46,15 +44,23 @@ declare global {
 // ─── State ──────────────────────────────────────────────────────────────
 
 let initialized = false;
-let hubApiInstance: HubApi | null = null;
+let hubApiInstance: any = null;
 let savedAccount: NimiqAccount | null = null;
 
 // Default to Nimiq Testnet Hub (or Mainnet based on env)
 const HUB_URL = process.env.NEXT_PUBLIC_NIMIQ_HUB_URL || 'https://hub.nimiq-testnet.com';
 
-function getHubApi(): HubApi {
+async function getHubApi(): Promise<any> {
+  if (typeof window === 'undefined') return null;
   if (!hubApiInstance) {
-    hubApiInstance = new HubApi(HUB_URL);
+    try {
+      const HubModule = await import('@nimiq/hub-api');
+      const HubClass = HubModule.default || (HubModule as any);
+      hubApiInstance = new HubClass(HUB_URL);
+    } catch (err) {
+      console.error('[Rosco] Failed to load @nimiq/hub-api:', err);
+      throw err;
+    }
   }
   return hubApiInstance;
 }
@@ -67,10 +73,14 @@ export async function initNimiqPay(): Promise<void> {
   if (typeof window !== 'undefined' && window.nimiqPay) {
     await window.nimiqPay.init();
     console.log('[Rosco] Connected via Nimiq Pay Mobile App Native Webview');
-  } else {
-    // Initialize Nimiq Hub Web API
-    getHubApi();
-    console.log(`[Rosco] Connected via Nimiq Hub Web API (${HUB_URL})`);
+  } else if (typeof window !== 'undefined') {
+    // Initialize Nimiq Hub Web API on client side safely
+    try {
+      await getHubApi();
+      console.log(`[Rosco] Connected via Nimiq Hub Web API (${HUB_URL})`);
+    } catch (err) {
+      console.warn('[Rosco] Hub API initialization deferred:', err);
+    }
   }
   initialized = true;
 }
@@ -88,7 +98,9 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
 
   // 3. Trigger Nimiq Hub Choose Address Pop-up
   try {
-    const hub = getHubApi();
+    const hub = await getHubApi();
+    if (!hub) return [];
+    
     const chosen = await hub.chooseAddress({
       appName: 'Rosco',
     });
@@ -115,7 +127,11 @@ export async function requestPayment(request: PaymentRequest): Promise<PaymentRe
 
   // 2. Nimiq Hub Web API Checkout Pop-up
   try {
-    const hub = getHubApi();
+    const hub = await getHubApi();
+    if (!hub) {
+      return { success: false, error: 'Hub API not available on server' };
+    }
+    
     // Nimiq Hub expects amount in Luna (1 NIM = 100,000 Luna)
     const lunaAmount = Math.round(request.amount * 100000);
 
