@@ -47,8 +47,8 @@ let initialized = false;
 let hubApiInstance: any = null;
 let savedAccount: NimiqAccount | null = null;
 
-// Default to Nimiq Testnet Hub (or Mainnet based on env)
-const HUB_URL = process.env.NEXT_PUBLIC_NIMIQ_HUB_URL || 'https://hub.nimiq-testnet.com';
+// Default to Nimiq Hub (or configurable via env)
+const HUB_URL = process.env.NEXT_PUBLIC_NIMIQ_HUB_URL || 'https://hub.nimiq.com';
 
 async function getHubApi(): Promise<any> {
   if (typeof window === 'undefined') return null;
@@ -98,14 +98,22 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
     return [savedAccount];
   }
 
-  // 3. Trigger Nimiq Hub Choose Address Pop-up
+  // 3. Trigger Nimiq Hub Choose Address / Onboard Pop-up
   try {
     const hub = await getHubApi();
     if (!hub) return [];
     
-    const chosen = await hub.chooseAddress({
-      appName: 'Rosco',
-    });
+    let chosen: any = null;
+    try {
+      chosen = await hub.chooseAddress({ appName: 'Rosco' });
+    } catch (err: any) {
+      console.log('[Rosco] chooseAddress fallback to onboard/login:', err);
+      // Fallback to onboard request if user has no accounts yet in Nimiq Hub
+      const accounts = await hub.onboard({ appName: 'Rosco' });
+      if (accounts && accounts.length && accounts[0].addresses && accounts[0].addresses.length) {
+        chosen = accounts[0].addresses[0];
+      }
+    }
 
     if (chosen && chosen.address) {
       savedAccount = {
