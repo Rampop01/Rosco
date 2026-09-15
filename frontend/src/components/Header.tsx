@@ -13,6 +13,15 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ title, onBack, onShowLanding, isLandingView }) => {
   const { wallet, user, disconnect } = useAuth();
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopyAddress = () => {
+    if (wallet?.address) {
+      navigator.clipboard.writeText(wallet.address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   return (
     <header className="header-sticky">
@@ -67,22 +76,28 @@ export const Header: React.FC<HeaderProps> = ({ title, onBack, onShowLanding, is
 
           {wallet ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <div style={{
-                background: '#F8FAFC',
-                border: '1px solid var(--border-color)',
-                borderRadius: 'var(--radius-full)',
-                padding: '0.45rem 0.95rem',
-                fontSize: '0.8rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.6rem'
-              }}>
+              <div 
+                onClick={handleCopyAddress}
+                title="Click to copy full Nimiq wallet address"
+                style={{
+                  background: copied ? 'rgba(16, 185, 129, 0.1)' : '#F8FAFC',
+                  border: copied ? '1px solid #10B981' : '1px solid var(--border-color)',
+                  borderRadius: 'var(--radius-full)',
+                  padding: '0.45rem 0.95rem',
+                  fontSize: '0.8rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
                 <span style={{ color: 'var(--primary-blue)', fontWeight: 700 }}>
-                  {wallet.balance ? `${wallet.balance} NIM` : 'Dev Wallet'}
+                  {wallet.balance !== undefined ? `${wallet.balance} NIM` : 'Nimiq Wallet'}
                 </span>
                 <span style={{ color: 'rgba(0,0,0,0.15)' }}>|</span>
-                <span style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
-                  {wallet.address.slice(0, 4)}...{wallet.address.slice(-4)}
+                <span style={{ fontFamily: 'monospace', color: copied ? '#10B981' : 'var(--text-secondary)', fontWeight: copied ? 700 : 400 }}>
+                  {copied ? 'Copied! ✓' : `${wallet.address.slice(0, 4)}...${wallet.address.slice(-4)}`}
                 </span>
               </div>
 

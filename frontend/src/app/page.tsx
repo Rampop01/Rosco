@@ -15,6 +15,7 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'app' | 'landing'>('landing');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'ACTIVE' | 'FORMING' | 'COMPLETED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [addressCopied, setAddressCopied] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -98,9 +99,29 @@ export default function Home() {
               <h2 style={{ fontSize: '1.8rem', marginBottom: '0.25rem' }}>
                 {user.display_name || 'Savings Member'}
               </h2>
-              <span className="text-secondary" style={{ fontSize: '0.85rem', fontFamily: 'monospace' }}>
-                {wallet.address}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginTop: '0.3rem' }}>
+                <span className="text-secondary" style={{ fontSize: '0.85rem', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                  {wallet.address}
+                </span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(wallet.address);
+                    setAddressCopied(true);
+                    setTimeout(() => setAddressCopied(false), 2000);
+                  }}
+                  className="btn-secondary"
+                  style={{
+                    padding: '0.25rem 0.6rem',
+                    fontSize: '0.75rem',
+                    background: addressCopied ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.1)',
+                    color: addressCopied ? '#10B981' : 'var(--text-secondary)',
+                    borderColor: addressCopied ? '#10B981' : 'var(--border-color)',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {addressCopied ? 'Copied! ✓' : '📋 Copy Address'}
+                </button>
+              </div>
             </div>
 
             <Link href="/create" style={{ textDecoration: 'none' }}>
