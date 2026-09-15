@@ -59,11 +59,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const primary = accounts[0];
       setWallet(primary);
 
-      const res = await createSession(primary.address, displayName || primary.label || 'Rosco User');
-      setUser(res.user);
-      setTokenState(res.token);
+      try {
+        const res = await createSession(primary.address, displayName || primary.label || 'Nimiq Member');
+        setUser(res.user);
+        setTokenState(res.token);
+      } catch (apiErr) {
+        console.warn('[Rosco] Backend API session creation failed (offline/unreachable), falling back to client wallet session:', apiErr);
+        // Fallback user object so the wallet address is always displayed even if backend is offline on Vercel
+        setUser({
+          id: primary.address,
+          nimiq_address: primary.address,
+          display_name: displayName || primary.label || 'Nimiq Member',
+          language: 'en',
+          created_at: new Date().toISOString(),
+        });
+      }
     } catch (err: any) {
-      console.warn('Wallet connection cancelled or failed:', err);
+      console.warn('[Rosco] Wallet connection cancelled:', err);
       disconnect();
     } finally {
       setIsLoading(false);
