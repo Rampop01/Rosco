@@ -36,14 +36,11 @@ export default function Home() {
     }
   };
 
-  const handleConnectAndLaunch = async (displayName?: string) => {
-    try {
-      await connectWallet(displayName);
-    } catch (err) {
+  const handleConnectAndLaunch = (displayName?: string) => {
+    setViewMode('app');
+    connectWallet(displayName).catch((err) => {
       console.warn('[Rosco] Connect and launch error:', err);
-    } finally {
-      setViewMode('app');
-    }
+    });
   };
 
   if (isLoading) {

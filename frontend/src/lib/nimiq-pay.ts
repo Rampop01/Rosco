@@ -73,8 +73,14 @@ export async function initNimiqPay(): Promise<void> {
   if (initialized) return;
 
   if (typeof window !== 'undefined' && window.nimiqPay) {
-    await window.nimiqPay.init();
-    console.log('[Rosco] Connected via Nimiq Pay Mobile App Native Webview');
+    try {
+      if (typeof window.nimiqPay.init === 'function') {
+        await window.nimiqPay.init();
+      }
+      console.log('[Rosco] Connected via Nimiq Pay Mobile App Native Webview');
+    } catch (e) {
+      console.warn('[Rosco] Native init warning:', e);
+    }
   } else if (typeof window !== 'undefined') {
     // Initialize Nimiq Hub Web API on client side safely
     try {
@@ -121,10 +127,13 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
       chosen = await hub.chooseAddress({ appName: 'Rosco' });
     } catch (err: any) {
       console.log('[Rosco] chooseAddress fallback to onboard/login:', err);
-      // Fallback to onboard request if user has no accounts yet in Nimiq Hub
-      const accounts = await hub.onboard({ appName: 'Rosco' });
-      if (accounts && accounts.length && accounts[0].addresses && accounts[0].addresses.length) {
-        chosen = accounts[0].addresses[0];
+      try {
+        const accounts = await hub.onboard({ appName: 'Rosco' });
+        if (accounts && accounts.length && accounts[0].addresses && accounts[0].addresses.length) {
+          chosen = accounts[0].addresses[0];
+        }
+      } catch (onboardErr) {
+        console.warn('[Rosco] Onboard error:', onboardErr);
       }
     }
 
