@@ -183,6 +183,60 @@ function findNimiqAddressFromBrowserState(): string | null {
   return null;
 }
 
+export function extractNimiqAddressFromResponse(res: any, nativeSdk?: any): string | null {
+  const isNq = (str: any): str is string => typeof str === 'string' && str.trim().startsWith('NQ') && str.trim().length >= 24;
+
+  if (isNq(res)) return res.trim();
+
+  if (Array.isArray(res) && res.length) {
+    const first = res[0];
+    if (isNq(first)) return first.trim();
+    if (typeof first === 'object' && first) {
+      if (isNq(first.address)) return first.address.trim();
+      if (isNq(first.account)) return first.account.trim();
+      if (typeof first.account === 'object' && isNq(first.account?.address)) return first.account.address.trim();
+    }
+  }
+
+  if (res && typeof res === 'object') {
+    if (isNq(res.address)) return res.address.trim();
+    if (isNq(res.account)) return res.account.trim();
+    if (typeof res.account === 'object' && isNq(res.account?.address)) return res.account.address.trim();
+
+    if (Array.isArray(res.accounts) && res.accounts.length) {
+      const first = res.accounts[0];
+      if (isNq(first)) return first.trim();
+      if (typeof first === 'object' && isNq(first.address)) return first.address.trim();
+    }
+
+    if (res.result) {
+      const r = extractNimiqAddressFromResponse(res.result);
+      if (r) return r;
+    }
+
+    if (res.data) {
+      const d = extractNimiqAddressFromResponse(res.data);
+      if (d) return d;
+    }
+  }
+
+  if (nativeSdk && typeof nativeSdk === 'object') {
+    const direct = nativeSdk.address ||
+                   nativeSdk.currentAddress ||
+                   nativeSdk.account?.address ||
+                   nativeSdk.currentAccount?.address ||
+                   nativeSdk.activeAccount?.address ||
+                   nativeSdk.selectedAddress ||
+                   nativeSdk.publicAddress ||
+                   nativeSdk.userAddress ||
+                   (typeof nativeSdk.account === 'string' ? nativeSdk.account : null);
+
+    if (isNq(direct)) return direct.trim();
+  }
+
+  return null;
+}
+
 export async function listAccounts(): Promise<NimiqAccount[]> {
   // Purge legacy generated synthetic addresses if any exist in storage
   if (typeof window !== 'undefined') {
@@ -218,7 +272,7 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
     return [acc];
   }
 
-  // 3. Native Nimiq Pay Webview Method Inspection (Triggers Native Nimiq Bottom Permission Sheet)
+  // 3. Native Nimiq Pay Webview Method Inspection (Triggers Native Bottom Permission Sheet)
   const nativeSdk = getNativeNimiqPaySDK();
   if (nativeSdk) {
     try {
@@ -234,26 +288,24 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
           try {
             console.log(`[Rosco] Calling nativeSdk.${fnName}() for Nimiq permission sheet...`);
             const res = await nativeSdk[fnName]();
-            if (Array.isArray(res) && res.length) {
-              const item = res[0];
-              const addr = typeof item === 'string' ? item : item?.address || item?.account;
-              if (addr && typeof addr === 'string' && addr.trim().startsWith('NQ')) {
-                const acc = { address: addr.trim(), label: item?.label || 'Nimiq Mobile Wallet' };
-                saveAccountToStorage(acc);
-                return [acc];
-              }
-            } else if (res && (typeof res === 'object' || typeof res === 'string')) {
-              const addr = typeof res === 'string' ? res : res.address || res.account;
-              if (addr && typeof addr === 'string' && addr.trim().startsWith('NQ')) {
-                const acc = { address: addr.trim(), label: res.label || 'Nimiq Mobile Wallet' };
-                saveAccountToStorage(acc);
-                return [acc];
-              }
+            const extractedAddr = extractNimiqAddressFromResponse(res, nativeSdk);
+            if (extractedAddr) {
+              const acc = { address: extractedAddr, label: 'Nimiq Mobile Wallet' };
+              saveAccountToStorage(acc);
+              return [acc];
             }
           } catch (e) {
             console.warn(`[Rosco] nativeSdk.${fnName}() attempt failed:`, e);
           }
         }
+      }
+
+      // Check nativeSdk properties directly
+      const directExtracted = extractNimiqAddressFromResponse(null, nativeSdk);
+      if (directExtracted) {
+        const acc = { address: directExtracted, label: 'Nimiq Mobile Wallet' };
+        saveAccountToStorage(acc);
+        return [acc];
       }
     } catch (nativeErr) {
       console.warn('[Rosco] Native Nimiq Pay listAccounts error:', nativeErr);
@@ -278,9 +330,9 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
     return [acc];
   }
 
-  // 5. ON MOBILE DEVICES: Executed native Nimiq SDK methods only (no EVM/ethereum fallback)
+  // 5. ON MOBILE DEVICES: Try window.nimiqPay / window.nimiq connect methods
   if (isMobileDevice()) {
-    console.log('[Rosco] Mobile device detected. Checking window.nimiqPay / window.nimiq...');
+    console.log('[Rosco] Mobile device detected. Executing native connect methods...');
     const fnsToTry = [
       () => (window as any).nimiqPay?.connect?.(),
       () => (window as any).nimiqPay?.requestAccounts?.(),
@@ -291,21 +343,11 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
     for (const fn of fnsToTry) {
       try {
         const res = await fn();
-        if (Array.isArray(res) && res.length) {
-          const item = res[0];
-          const addr = typeof item === 'string' ? item : item?.address || item?.account;
-          if (addr && typeof addr === 'string' && addr.trim().startsWith('NQ')) {
-            const acc = { address: addr.trim(), label: 'Nimiq Mobile Wallet' };
-            saveAccountToStorage(acc);
-            return [acc];
-          }
-        } else if (res && (typeof res === 'object' || typeof res === 'string')) {
-          const addr = typeof res === 'string' ? res : res.address || res.account;
-          if (addr && typeof addr === 'string' && addr.trim().startsWith('NQ')) {
-            const acc = { address: addr.trim(), label: 'Nimiq Mobile Wallet' };
-            saveAccountToStorage(acc);
-            return [acc];
-          }
+        const extractedAddr = extractNimiqAddressFromResponse(res, (window as any).nimiqPay || (window as any).nimiq);
+        if (extractedAddr) {
+          const acc = { address: extractedAddr, label: 'Nimiq Mobile Wallet' };
+          saveAccountToStorage(acc);
+          return [acc];
         }
       } catch (e) {
         console.warn('[Rosco] Mobile connect try error:', e);
