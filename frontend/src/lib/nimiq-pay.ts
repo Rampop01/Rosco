@@ -104,17 +104,28 @@ export async function initNimiqPay(): Promise<void> {
   initialized = true;
 }
 
+export function isMobileDevice(): boolean {
+  if (typeof window === 'undefined') return false;
+  return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 820 || !!getNativeNimiqPaySDK();
+}
+
 export async function listAccounts(): Promise<NimiqAccount[]> {
   // Purge legacy generated synthetic addresses if any exist in storage
   if (typeof window !== 'undefined') {
     localStorage.removeItem('rosco_generated_address');
   }
 
-  // 1. Check URL query parameters (Nimiq Pay mobile app often passes address in URL)
+  // 1. Check URL query parameters (Nimiq Pay mobile app & deep-links pass address in URL)
   if (typeof window !== 'undefined') {
     try {
       const params = new URLSearchParams(window.location.search);
-      const urlAddr = params.get('address') || params.get('account') || params.get('nimiq_address') || params.get('user_address');
+      const urlAddr = params.get('address') || 
+                      params.get('account') || 
+                      params.get('nimiq_address') || 
+                      params.get('user_address') ||
+                      params.get('nimiq') ||
+                      params.get('wallet');
+
       if (urlAddr && typeof urlAddr === 'string' && urlAddr.trim().length > 10) {
         const acc = { address: urlAddr.trim(), label: 'Nimiq Mobile Wallet' };
         saveAccountToStorage(acc);
@@ -125,7 +136,7 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
     }
   }
 
-  // 2. Native Nimiq Pay Webview — Inspect all possible native SDK methods & properties
+  // 2. Check Native / Injected Mobile SDKs
   const nativeSdk = getNativeNimiqPaySDK();
   if (nativeSdk) {
     try {
@@ -192,7 +203,22 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
     return [stored];
   }
 
-  // 4. Standard Web Browser / Webview Fallback: Trigger Nimiq Hub Choose Address / Onboard Pop-up
+  // 4. ON MOBILE DEVICES: NEVER redirect to hub.nimiq.com or call hub.onboard()!
+  // Ask for address directly or retrieve from mobile environment
+  if (isMobileDevice()) {
+    console.log('[Rosco] Running on Mobile — Skipping hub.onboard() web app redirect.');
+    if (typeof window !== 'undefined') {
+      const inputAddr = window.prompt('Please enter your Nimiq Wallet Address (e.g. NQ07...):');
+      if (inputAddr && inputAddr.trim().length > 10) {
+        const acc = { address: inputAddr.trim(), label: 'Nimiq Mobile Wallet' };
+        saveAccountToStorage(acc);
+        return [acc];
+      }
+    }
+    return [];
+  }
+
+  // 5. DESKTOP BROWSERS ONLY: Trigger Nimiq Hub Choose Address Pop-up
   try {
     const hub = await getHubApi();
     if (!hub) return [];
