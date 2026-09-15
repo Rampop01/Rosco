@@ -59,22 +59,6 @@ export const Header: React.FC<HeaderProps> = ({ title, onBack, onShowLanding, is
 
         {/* Right Navigation & Wallet State */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          {onShowLanding && (
-            <button 
-              className="btn-secondary"
-              onClick={onShowLanding}
-              style={{
-                padding: '0.45rem 0.95rem',
-                fontSize: '0.82rem',
-                background: isLandingView ? 'rgba(230, 180, 0, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                borderColor: isLandingView ? 'var(--accent-gold)' : 'var(--border-color)',
-                color: isLandingView ? 'var(--accent-gold-light)' : 'var(--text-secondary)'
-              }}
-            >
-              {isLandingView ? 'App Dashboard' : 'Landing Page'}
-            </button>
-          )}
-
           {wallet ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
               <div 
