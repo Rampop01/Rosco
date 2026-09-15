@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
+import { Copy, Check } from 'lucide-react';
 
 interface HeaderProps {
   title?: string;
@@ -96,8 +97,18 @@ export const Header: React.FC<HeaderProps> = ({ title, onBack, onShowLanding, is
                   {wallet.balance !== undefined ? `${wallet.balance} NIM` : 'Nimiq Wallet'}
                 </span>
                 <span style={{ color: 'rgba(0,0,0,0.15)' }}>|</span>
-                <span style={{ fontFamily: 'monospace', color: copied ? '#10B981' : 'var(--text-secondary)', fontWeight: copied ? 700 : 400 }}>
-                  {copied ? 'Copied! ✓' : `${wallet.address.slice(0, 4)}...${wallet.address.slice(-4)}`}
+                <span style={{ fontFamily: 'monospace', color: copied ? '#10B981' : 'var(--text-secondary)', fontWeight: copied ? 700 : 400, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                  {copied ? (
+                    <>
+                      <Check style={{ width: '13px', height: '13px', color: '#10B981' }} />
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{wallet.address.slice(0, 4)}...{wallet.address.slice(-4)}</span>
+                      <Copy style={{ width: '13px', height: '13px', opacity: 0.6 }} />
+                    </>
+                  )}
                 </span>
               </div>
 

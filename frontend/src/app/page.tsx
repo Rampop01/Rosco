@@ -7,6 +7,7 @@ import { CircleCard } from '../components/CircleCard';
 import { LandingPage } from '../components/LandingPage';
 import { getCircles, Circle } from '../lib/api';
 import Link from 'next/link';
+import { Copy, Check } from 'lucide-react';
 
 export default function Home() {
   const { user, wallet, isLoading, connectWallet } = useAuth();
@@ -110,16 +111,30 @@ export default function Home() {
                     setTimeout(() => setAddressCopied(false), 2000);
                   }}
                   className="btn-secondary"
+                  title="Copy full wallet address"
                   style={{
-                    padding: '0.25rem 0.6rem',
-                    fontSize: '0.75rem',
+                    padding: '0.3rem 0.7rem',
+                    fontSize: '0.78rem',
                     background: addressCopied ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.1)',
                     color: addressCopied ? '#10B981' : 'var(--text-secondary)',
                     borderColor: addressCopied ? '#10B981' : 'var(--border-color)',
-                    whiteSpace: 'nowrap'
+                    whiteSpace: 'nowrap',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem'
                   }}
                 >
-                  {addressCopied ? 'Copied! ✓' : '📋 Copy Address'}
+                  {addressCopied ? (
+                    <>
+                      <Check style={{ width: '14px', height: '14px', color: '#10B981' }} />
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy style={{ width: '14px', height: '14px' }} />
+                      <span>Copy Address</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
