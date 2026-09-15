@@ -105,16 +105,35 @@ export async function initNimiqPay(): Promise<void> {
 }
 
 export async function listAccounts(): Promise<NimiqAccount[]> {
-  const nativeSdk = getNativeNimiqPaySDK();
+  // Purge legacy generated synthetic addresses if any exist in storage
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('rosco_generated_address');
+  }
 
-  // 1. Native Nimiq Pay Webview — Inspect all possible native SDK methods & properties
+  // 1. Check URL query parameters (Nimiq Pay mobile app often passes address in URL)
+  if (typeof window !== 'undefined') {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlAddr = params.get('address') || params.get('account') || params.get('nimiq_address') || params.get('user_address');
+      if (urlAddr && typeof urlAddr === 'string' && urlAddr.trim().length > 10) {
+        const acc = { address: urlAddr.trim(), label: 'Nimiq Mobile Wallet' };
+        saveAccountToStorage(acc);
+        return [acc];
+      }
+    } catch (e) {
+      console.warn('[Rosco] Error parsing URL address params:', e);
+    }
+  }
+
+  // 2. Native Nimiq Pay Webview — Inspect all possible native SDK methods & properties
+  const nativeSdk = getNativeNimiqPaySDK();
   if (nativeSdk) {
     try {
       if (typeof nativeSdk.init === 'function') {
         await nativeSdk.init();
       }
       // Check known native async methods
-      const methodNames = ['listAccounts', 'getAccounts', 'requestAccounts', 'getAccount', 'getAddress', 'getWallet'];
+      const methodNames = ['listAccounts', 'getAccounts', 'requestAccounts', 'getAccount', 'getAddress', 'getWallet', 'getNimiqAddress'];
       for (const fnName of methodNames) {
         if (typeof nativeSdk[fnName] === 'function') {
           try {
@@ -127,7 +146,7 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
                 saveAccountToStorage(acc);
                 return [acc];
               }
-            } else if (res && typeof res === 'object') {
+            } else if (res && (typeof res === 'object' || typeof res === 'string')) {
               const addr = typeof res === 'string' ? res : res.address || res.account;
               if (addr && typeof addr === 'string') {
                 const acc = { address: addr, label: res.label || 'Nimiq Mobile Wallet' };
@@ -147,6 +166,8 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
                          nativeSdk.account?.address || 
                          nativeSdk.currentAccount?.address ||
                          nativeSdk.activeAccount?.address ||
+                         nativeSdk.selectedAddress ||
+                         nativeSdk.publicAddress ||
                          nativeSdk.userAddress ||
                          (typeof nativeSdk.account === 'string' ? nativeSdk.account : null);
 
@@ -158,21 +179,9 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
     } catch (nativeErr) {
       console.warn('[Rosco] Native Nimiq Pay listAccounts error:', nativeErr);
     }
-
-    // Check stored mobile wallet account in localStorage
-    const stored = getAccountFromStorage();
-    if (stored) {
-      return [stored];
-    }
-
-    // Inside native mobile app webview: generate a persistent Nimiq address for this mobile device
-    const generatedAddress = generateDeviceNimiqAddress();
-    const newAcc = { address: generatedAddress, label: 'Nimiq Pay Mobile Wallet' };
-    saveAccountToStorage(newAcc);
-    return [newAcc];
   }
 
-  // 2. Return cached account if user already connected in this session
+  // 3. Return cached account if user already connected in this session
   if (savedAccount) {
     return [savedAccount];
   }
@@ -183,7 +192,7 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
     return [stored];
   }
 
-  // 3. Standard Web Browser: Trigger Nimiq Hub Choose Address / Onboard Pop-up
+  // 4. Standard Web Browser / Webview Fallback: Trigger Nimiq Hub Choose Address / Onboard Pop-up
   try {
     const hub = await getHubApi();
     if (!hub) return [];
@@ -234,25 +243,6 @@ function getAccountFromStorage(): NimiqAccount | null {
     return { address, label };
   }
   return null;
-}
-
-function generateDeviceNimiqAddress(): string {
-  if (typeof window !== 'undefined') {
-    const existing = localStorage.getItem('rosco_generated_address');
-    if (existing) return existing;
-  }
-  // Generate a valid-looking Nimiq address format NQxx xxxx ...
-  const chars = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-  let randomBody = '';
-  for (let i = 0; i < 32; i++) {
-    randomBody += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  // Format as NQxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx
-  const formatted = `NQ07 ${randomBody.slice(0,4)} ${randomBody.slice(4,8)} ${randomBody.slice(8,12)} ${randomBody.slice(12,16)} ${randomBody.slice(16,20)} ${randomBody.slice(20,24)} ${randomBody.slice(24,28)} ${randomBody.slice(28,32)}`;
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('rosco_generated_address', formatted);
-  }
-  return formatted;
 }
 
 export async function requestPayment(request: PaymentRequest): Promise<PaymentResult> {
@@ -313,9 +303,13 @@ export function getTheme(): 'light' | 'dark' {
 
 export function resetWalletAccount(): void {
   savedAccount = null;
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('rosco_wallet_address');
+    localStorage.removeItem('rosco_wallet_label');
+    localStorage.removeItem('rosco_generated_address');
+  }
 }
 
 export function isDevMode(): boolean {
-  // Now returns false for web browsers because real Nimiq Hub API is active!
   return !(typeof window !== 'undefined' && (window.nimiqPay || true));
 }
