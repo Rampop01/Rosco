@@ -90,7 +90,20 @@ export async function initNimiqPay(): Promise<void> {
 export async function listAccounts(): Promise<NimiqAccount[]> {
   // 1. Native Nimiq Pay Webview
   if (typeof window !== 'undefined' && window.nimiqPay) {
-    return window.nimiqPay.listAccounts();
+    try {
+      if (typeof window.nimiqPay.init === 'function') {
+        await window.nimiqPay.init();
+      }
+      if (typeof window.nimiqPay.listAccounts === 'function') {
+        const nativeAccounts = await window.nimiqPay.listAccounts();
+        if (nativeAccounts && nativeAccounts.length) {
+          console.log('[Rosco] Retrieved accounts from native Nimiq Pay webview:', nativeAccounts);
+          return nativeAccounts;
+        }
+      }
+    } catch (nativeErr) {
+      console.warn('[Rosco] Native window.nimiqPay listAccounts failed, falling back to Nimiq Hub:', nativeErr);
+    }
   }
 
   // 2. Return cached account if user already connected in this session
