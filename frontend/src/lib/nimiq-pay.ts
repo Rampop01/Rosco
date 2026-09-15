@@ -218,7 +218,7 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
     return [acc];
   }
 
-  // 3. Native Nimiq Pay Webview Method Inspection (Triggers Native Bottom Permission Sheet)
+  // 3. Native Nimiq Pay Webview Method Inspection (Triggers Native Nimiq Bottom Permission Sheet)
   const nativeSdk = getNativeNimiqPaySDK();
   if (nativeSdk) {
     try {
@@ -226,26 +226,26 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
         await nativeSdk.init();
       }
       const methodNames = [
-        'connect', 'requestAccounts', 'eth_requestAccounts', 'login', 'connectWallet', 
-        'enable', 'listAccounts', 'getAccounts', 'getAccount', 'getAddress', 'getWallet', 'getNimiqAddress'
+        'connect', 'requestAccounts', 'login', 'connectWallet', 
+        'listAccounts', 'getAccounts', 'getAccount', 'getAddress', 'getWallet', 'getNimiqAddress'
       ];
       for (const fnName of methodNames) {
         if (typeof nativeSdk[fnName] === 'function') {
           try {
-            console.log(`[Rosco] Calling nativeSdk.${fnName}() to open Nimiq Pay permission sheet...`);
+            console.log(`[Rosco] Calling nativeSdk.${fnName}() for Nimiq permission sheet...`);
             const res = await nativeSdk[fnName]();
             if (Array.isArray(res) && res.length) {
               const item = res[0];
               const addr = typeof item === 'string' ? item : item?.address || item?.account;
-              if (addr && typeof addr === 'string') {
-                const acc = { address: addr, label: item?.label || 'Nimiq Mobile Wallet' };
+              if (addr && typeof addr === 'string' && addr.trim().startsWith('NQ')) {
+                const acc = { address: addr.trim(), label: item?.label || 'Nimiq Mobile Wallet' };
                 saveAccountToStorage(acc);
                 return [acc];
               }
             } else if (res && (typeof res === 'object' || typeof res === 'string')) {
               const addr = typeof res === 'string' ? res : res.address || res.account;
-              if (addr && typeof addr === 'string') {
-                const acc = { address: addr, label: res.label || 'Nimiq Mobile Wallet' };
+              if (addr && typeof addr === 'string' && addr.trim().startsWith('NQ')) {
+                const acc = { address: addr.trim(), label: res.label || 'Nimiq Mobile Wallet' };
                 saveAccountToStorage(acc);
                 return [acc];
               }
@@ -278,17 +278,14 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
     return [acc];
   }
 
-  // 5. ON MOBILE DEVICES: Try window.ethereum / window.nimiq connect methods to trigger native sheet
+  // 5. ON MOBILE DEVICES: Executed native Nimiq SDK methods only (no EVM/ethereum fallback)
   if (isMobileDevice()) {
-    console.log('[Rosco] Mobile device detected. Executing native connect RPCs...');
+    console.log('[Rosco] Mobile device detected. Checking window.nimiqPay / window.nimiq...');
     const fnsToTry = [
       () => (window as any).nimiqPay?.connect?.(),
       () => (window as any).nimiqPay?.requestAccounts?.(),
       () => (window as any).nimiq?.connect?.(),
-      () => (window as any).nimiq?.requestAccounts?.(),
-      () => (window as any).ethereum?.request?.({ method: 'eth_requestAccounts' }),
-      () => (window as any).ethereum?.request?.({ method: 'requestAccounts' }),
-      () => (window as any).ethereum?.enable?.()
+      () => (window as any).nimiq?.requestAccounts?.()
     ];
 
     for (const fn of fnsToTry) {
@@ -297,15 +294,15 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
         if (Array.isArray(res) && res.length) {
           const item = res[0];
           const addr = typeof item === 'string' ? item : item?.address || item?.account;
-          if (addr && typeof addr === 'string') {
-            const acc = { address: addr, label: 'Nimiq Mobile Wallet' };
+          if (addr && typeof addr === 'string' && addr.trim().startsWith('NQ')) {
+            const acc = { address: addr.trim(), label: 'Nimiq Mobile Wallet' };
             saveAccountToStorage(acc);
             return [acc];
           }
         } else if (res && (typeof res === 'object' || typeof res === 'string')) {
           const addr = typeof res === 'string' ? res : res.address || res.account;
-          if (addr && typeof addr === 'string') {
-            const acc = { address: addr, label: 'Nimiq Mobile Wallet' };
+          if (addr && typeof addr === 'string' && addr.trim().startsWith('NQ')) {
+            const acc = { address: addr.trim(), label: 'Nimiq Mobile Wallet' };
             saveAccountToStorage(acc);
             return [acc];
           }
