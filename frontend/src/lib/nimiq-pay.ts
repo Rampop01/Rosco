@@ -109,6 +109,80 @@ export function isMobileDevice(): boolean {
   return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 820 || !!getNativeNimiqPaySDK();
 }
 
+function findNimiqAddressOnWindow(): string | null {
+  if (typeof window === 'undefined') return null;
+
+  const knownKeys = [
+    'address', 'nimiqAddress', 'walletAddress', 'userAddress', 'account', 'nimiqAccount',
+    'nimiqPay', 'NimiqPay', 'nimiq', 'Nimiq', 'nimiqWallet', 'NimiqWallet',
+    'nimiqUser', 'NimiqUser', 'nimiqPaySDK', 'NimiqPaySDK'
+  ];
+
+  for (const key of knownKeys) {
+    const obj = (window as any)[key];
+    if (!obj) continue;
+
+    if (typeof obj === 'string' && obj.trim().startsWith('NQ') && obj.trim().length >= 24) {
+      return obj.trim();
+    }
+
+    if (typeof obj === 'object') {
+      const addr = obj.address || obj.currentAddress || obj.account?.address || obj.userAddress || obj.selectedAddress || obj.publicAddress || (typeof obj.account === 'string' ? obj.account : null);
+      if (addr && typeof addr === 'string' && addr.trim().startsWith('NQ') && addr.trim().length >= 24) {
+        return addr.trim();
+      }
+    }
+  }
+
+  try {
+    for (const key of Object.keys(window)) {
+      if (/nimiq|wallet|account|pay/i.test(key)) {
+        const obj = (window as any)[key];
+        if (!obj) continue;
+        if (typeof obj === 'string' && obj.trim().startsWith('NQ') && obj.trim().length >= 24) {
+          return obj.trim();
+        }
+        if (typeof obj === 'object') {
+          const addr = obj.address || obj.currentAddress || obj.account?.address || obj.userAddress || obj.selectedAddress || (typeof obj.account === 'string' ? obj.account : null);
+          if (addr && typeof addr === 'string' && addr.trim().startsWith('NQ') && addr.trim().length >= 24) {
+            return addr.trim();
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[Rosco] Window scan error:', e);
+  }
+
+  return null;
+}
+
+function findNimiqAddressFromBrowserState(): string | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (/nimiq|wallet|account|address|hub/i.test(key)) {
+        const val = localStorage.getItem(key);
+        if (!val) continue;
+
+        if (val.includes('NQ')) {
+          const match = val.match(/NQ\d{2}(?:\s?[0-9A-Z]{4}){8}/i) || val.match(/NQ[0-9A-Z]{32,40}/i);
+          if (match && match[0]) {
+            return match[0].trim();
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[Rosco] localStorage search error:', e);
+  }
+
+  return null;
+}
+
 export async function listAccounts(): Promise<NimiqAccount[]> {
   // Purge legacy generated synthetic addresses if any exist in storage
   if (typeof window !== 'undefined') {
@@ -136,14 +210,21 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
     }
   }
 
-  // 2. Check Native / Injected Mobile SDKs
+  // 2. Comprehensive Window & Native Mobile SDK Auto-Scan
+  const windowAddr = findNimiqAddressOnWindow();
+  if (windowAddr) {
+    const acc = { address: windowAddr, label: 'Nimiq Mobile Wallet' };
+    saveAccountToStorage(acc);
+    return [acc];
+  }
+
+  // 3. Native Nimiq Pay Webview Method Inspection
   const nativeSdk = getNativeNimiqPaySDK();
   if (nativeSdk) {
     try {
       if (typeof nativeSdk.init === 'function') {
         await nativeSdk.init();
       }
-      // Check known native async methods
       const methodNames = ['listAccounts', 'getAccounts', 'requestAccounts', 'getAccount', 'getAddress', 'getWallet', 'getNimiqAddress'];
       for (const fnName of methodNames) {
         if (typeof nativeSdk[fnName] === 'function') {
@@ -170,29 +251,12 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
           }
         }
       }
-
-      // Check known native direct properties
-      const directAddr = nativeSdk.address || 
-                         nativeSdk.currentAddress || 
-                         nativeSdk.account?.address || 
-                         nativeSdk.currentAccount?.address ||
-                         nativeSdk.activeAccount?.address ||
-                         nativeSdk.selectedAddress ||
-                         nativeSdk.publicAddress ||
-                         nativeSdk.userAddress ||
-                         (typeof nativeSdk.account === 'string' ? nativeSdk.account : null);
-
-      if (directAddr && typeof directAddr === 'string') {
-        const acc = { address: directAddr, label: nativeSdk.account?.label || 'Nimiq Mobile Wallet' };
-        saveAccountToStorage(acc);
-        return [acc];
-      }
     } catch (nativeErr) {
       console.warn('[Rosco] Native Nimiq Pay listAccounts error:', nativeErr);
     }
   }
 
-  // 3. Return cached account if user already connected in this session
+  // 4. Return cached account if user already connected in this session or browser state
   if (savedAccount) {
     return [savedAccount];
   }
@@ -203,22 +267,20 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
     return [stored];
   }
 
-  // 4. ON MOBILE DEVICES: NEVER redirect to hub.nimiq.com or call hub.onboard()!
-  // Ask for address directly or retrieve from mobile environment
+  const browserStateAddr = findNimiqAddressFromBrowserState();
+  if (browserStateAddr) {
+    const acc = { address: browserStateAddr, label: 'Nimiq Mobile Wallet' };
+    saveAccountToStorage(acc);
+    return [acc];
+  }
+
+  // 5. ON MOBILE DEVICES: NEVER pop up window.prompt or redirect to hub.nimiq.com!
   if (isMobileDevice()) {
-    console.log('[Rosco] Running on Mobile — Skipping hub.onboard() web app redirect.');
-    if (typeof window !== 'undefined') {
-      const inputAddr = window.prompt('Please enter your Nimiq Wallet Address (e.g. NQ07...):');
-      if (inputAddr && inputAddr.trim().length > 10) {
-        const acc = { address: inputAddr.trim(), label: 'Nimiq Mobile Wallet' };
-        saveAccountToStorage(acc);
-        return [acc];
-      }
-    }
+    console.log('[Rosco] Mobile device detected. Auto-detection complete.');
     return [];
   }
 
-  // 5. DESKTOP BROWSERS ONLY: Trigger Nimiq Hub Choose Address Pop-up
+  // 6. DESKTOP BROWSERS ONLY: Trigger Nimiq Hub Choose Address Pop-up
   try {
     const hub = await getHubApi();
     if (!hub) return [];
