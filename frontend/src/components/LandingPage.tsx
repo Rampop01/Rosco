@@ -124,10 +124,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onConnectWallet, isLog
         >
           <div className="brand-icon">R</div>
           <span className="brand-title">Rosco</span>
-          <div className="network-badge">
-            <span className="network-dot"></span>
-            Nimiq Testnet
-          </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
