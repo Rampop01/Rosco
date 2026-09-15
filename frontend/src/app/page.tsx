@@ -19,6 +19,12 @@ export default function Home() {
   const [addressCopied, setAddressCopied] = useState(false);
 
   useEffect(() => {
+    if (user && wallet) {
+      setViewMode('app');
+    }
+  }, [user, wallet]);
+
+  useEffect(() => {
     if (user) {
       loadCircles();
     }
@@ -36,11 +42,13 @@ export default function Home() {
     }
   };
 
-  const handleConnectAndLaunch = (displayName?: string) => {
-    setViewMode('app');
-    connectWallet(displayName).catch((err) => {
+  const handleConnectAndLaunch = async (displayName?: string) => {
+    try {
+      await connectWallet(displayName);
+      setViewMode('app');
+    } catch (err) {
       console.warn('[Rosco] Connect and launch error:', err);
-    });
+    }
   };
 
   if (isLoading) {

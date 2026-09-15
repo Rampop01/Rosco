@@ -32,31 +32,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     async function initAuth() {
       try {
         await initNimiqPay();
-        // If running inside Nimiq Pay Mobile Webview, automatically pick up native wallet address!
-        if (getNativeNimiqPaySDK()) {
-          try {
-            const accounts = await listAccounts();
-            if (accounts && accounts.length && accounts[0].address) {
-              const primary = accounts[0];
-              setWallet(primary);
-              setUser({
-                id: primary.address,
-                nimiq_address: primary.address,
-                display_name: primary.label || 'Nimiq Pay Member',
-                language: 'en',
-                created_at: new Date().toISOString(),
-              });
-              console.log('[Rosco] Auto-connected native Nimiq Pay wallet:', primary.address);
-            }
-          } catch (e) {
-            console.warn('[Rosco] Auto native wallet fetch deferred:', e);
-          }
-        } else {
-          const storedToken = getToken();
-          if (storedToken) {
-            clearToken();
-            resetWalletAccount();
-          }
+        const stored = typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null;
+        if (stored) {
+          const primary = { address: stored, label: localStorage.getItem('rosco_wallet_label') || 'Nimiq Wallet' };
+          setWallet(primary);
+          setUser({
+            id: primary.address,
+            nimiq_address: primary.address,
+            display_name: primary.label,
+            language: 'en',
+            created_at: new Date().toISOString(),
+          });
         }
       } catch (err) {
         console.error('Failed to initialize Nimiq Pay auth:', err);
@@ -78,25 +64,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       const primary = accounts[0];
       setWallet(primary);
+      const fallbackUser: User = {
+        id: primary.address,
+        nimiq_address: primary.address,
+        display_name: displayName || primary.label || 'Nimiq Member',
+        language: 'en',
+        created_at: new Date().toISOString(),
+      };
+      setUser(fallbackUser);
 
       try {
         const res = await createSession(primary.address, displayName || primary.label || 'Nimiq Member');
         setUser(res.user);
         setTokenState(res.token);
       } catch (apiErr) {
-        console.warn('[Rosco] Backend API session creation failed (offline/unreachable), falling back to client wallet session:', apiErr);
-        // Fallback user object so the wallet address is always displayed even if backend is offline on Vercel
-        setUser({
-          id: primary.address,
-          nimiq_address: primary.address,
-          display_name: displayName || primary.label || 'Nimiq Member',
-          language: 'en',
-          created_at: new Date().toISOString(),
-        });
+        console.warn('[Rosco] Backend API session creation skipped (using client wallet):', apiErr);
       }
     } catch (err: any) {
-      console.warn('[Rosco] Wallet connection cancelled:', err);
-      disconnect();
+      console.warn('[Rosco] Wallet connection failed:', err);
     } finally {
       setIsLoading(false);
     }
