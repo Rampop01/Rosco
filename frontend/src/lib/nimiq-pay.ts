@@ -67,17 +67,28 @@ async function getHubApi(): Promise<any> {
   return hubApiInstance;
 }
 
+export function getNativeNimiqPaySDK(): any {
+  if (typeof window === 'undefined') return null;
+  return window.nimiqPay || 
+         (window as any).NimiqPay || 
+         (window as any).nimiq || 
+         (window as any).Nimiq || 
+         (window as any).nimiqPaySDK || 
+         (window as any).NimiqPaySDK;
+}
+
 // ─── Public API ─────────────────────────────────────────────────────────────
 
 export async function initNimiqPay(): Promise<void> {
   if (initialized) return;
 
-  if (typeof window !== 'undefined' && window.nimiqPay) {
+  const nativeSdk = getNativeNimiqPaySDK();
+  if (nativeSdk) {
     try {
-      if (typeof window.nimiqPay.init === 'function') {
-        await window.nimiqPay.init();
+      if (typeof nativeSdk.init === 'function') {
+        await nativeSdk.init();
       }
-      console.log('[Rosco] Connected via Nimiq Pay Mobile App Native Webview');
+      console.log('[Rosco] Connected via Native Nimiq Pay Mobile App Webview');
     } catch (e) {
       console.warn('[Rosco] Native init warning:', e);
     }
@@ -94,22 +105,44 @@ export async function initNimiqPay(): Promise<void> {
 }
 
 export async function listAccounts(): Promise<NimiqAccount[]> {
-  // 1. Native Nimiq Pay Webview
-  if (typeof window !== 'undefined' && window.nimiqPay) {
+  const nativeSdk = getNativeNimiqPaySDK();
+
+  // 1. Native Nimiq Pay Webview — Use Native SDK ONLY (do not fall back to Hub web wallet)
+  if (nativeSdk) {
     try {
-      if (typeof window.nimiqPay.init === 'function') {
-        await window.nimiqPay.init();
+      if (typeof nativeSdk.init === 'function') {
+        await nativeSdk.init();
       }
-      if (typeof window.nimiqPay.listAccounts === 'function') {
-        const nativeAccounts = await window.nimiqPay.listAccounts();
+      if (typeof nativeSdk.listAccounts === 'function') {
+        const nativeAccounts = await nativeSdk.listAccounts();
         if (nativeAccounts && nativeAccounts.length) {
-          console.log('[Rosco] Retrieved accounts from native Nimiq Pay webview:', nativeAccounts);
+          console.log('[Rosco] Retrieved accounts from native Nimiq Pay listAccounts:', nativeAccounts);
           return nativeAccounts;
         }
       }
+      if (typeof nativeSdk.getAccounts === 'function') {
+        const nativeAccounts = await nativeSdk.getAccounts();
+        if (nativeAccounts && nativeAccounts.length) {
+          console.log('[Rosco] Retrieved accounts from native Nimiq Pay getAccounts:', nativeAccounts);
+          return nativeAccounts;
+        }
+      }
+      if (typeof nativeSdk.requestAccounts === 'function') {
+        const nativeAccounts = await nativeSdk.requestAccounts();
+        if (nativeAccounts && nativeAccounts.length) {
+          console.log('[Rosco] Retrieved accounts from native Nimiq Pay requestAccounts:', nativeAccounts);
+          return nativeAccounts;
+        }
+      }
+      const directAddr = nativeSdk.address || nativeSdk.currentAddress || nativeSdk.account?.address || nativeSdk.currentAccount?.address;
+      if (directAddr && typeof directAddr === 'string') {
+        return [{ address: directAddr, label: nativeSdk.account?.label || 'Nimiq Mobile Wallet' }];
+      }
     } catch (nativeErr) {
-      console.warn('[Rosco] Native window.nimiqPay listAccounts failed, falling back to Nimiq Hub:', nativeErr);
+      console.warn('[Rosco] Native Nimiq Pay listAccounts error:', nativeErr);
     }
+    // Return empty array when inside native app webview so it NEVER pops up Nimiq Hub web wallet
+    return [];
   }
 
   // 2. Return cached account if user already connected in this session
@@ -117,7 +150,7 @@ export async function listAccounts(): Promise<NimiqAccount[]> {
     return [savedAccount];
   }
 
-  // 3. Trigger Nimiq Hub Choose Address / Onboard Pop-up
+  // 3. Standard Web Browser: Trigger Nimiq Hub Choose Address / Onboard Pop-up
   try {
     const hub = await getHubApi();
     if (!hub) return [];

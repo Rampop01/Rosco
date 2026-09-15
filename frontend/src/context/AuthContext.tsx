@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { initNimiqPay, listAccounts, resetWalletAccount, NimiqAccount } from '../lib/nimiq-pay';
+import { initNimiqPay, listAccounts, resetWalletAccount, getNativeNimiqPaySDK, NimiqAccount } from '../lib/nimiq-pay';
 import { createSession, getToken, clearToken, User } from '../lib/api';
 
 interface AuthContextType {
@@ -33,7 +33,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         await initNimiqPay();
         // If running inside Nimiq Pay Mobile Webview, automatically pick up native wallet address!
-        if (typeof window !== 'undefined' && window.nimiqPay) {
+        if (getNativeNimiqPaySDK()) {
           try {
             const accounts = await listAccounts();
             if (accounts && accounts.length && accounts[0].address) {
