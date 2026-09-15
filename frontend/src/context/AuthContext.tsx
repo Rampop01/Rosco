@@ -32,11 +32,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     async function initAuth() {
       try {
         await initNimiqPay();
-        const storedToken = getToken();
-        if (storedToken) {
-          // If we had a stored token from an old mock session, clear it if no account is explicitly chosen
-          clearToken();
-          resetWalletAccount();
+        // If running inside Nimiq Pay Mobile Webview, automatically pick up native wallet address!
+        if (typeof window !== 'undefined' && window.nimiqPay) {
+          try {
+            const accounts = await listAccounts();
+            if (accounts && accounts.length && accounts[0].address) {
+              const primary = accounts[0];
+              setWallet(primary);
+              setUser({
+                id: primary.address,
+                nimiq_address: primary.address,
+                display_name: primary.label || 'Nimiq Pay Member',
+                language: 'en',
+                created_at: new Date().toISOString(),
+              });
+              console.log('[Rosco] Auto-connected native Nimiq Pay wallet:', primary.address);
+            }
+          } catch (e) {
+            console.warn('[Rosco] Auto native wallet fetch deferred:', e);
+          }
+        } else {
+          const storedToken = getToken();
+          if (storedToken) {
+            clearToken();
+            resetWalletAccount();
+          }
         }
       } catch (err) {
         console.error('Failed to initialize Nimiq Pay auth:', err);
