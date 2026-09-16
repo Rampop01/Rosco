@@ -8,10 +8,15 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const walletAddress = req.headers.get('x-wallet-address') || 'NQ750000000000000000000000000000';
+    const walletAddress = req.headers.get('x-wallet-address') || '';
+    const orgId = body.organizer_id || walletAddress;
+    const orgName = body.organizer_name || 'Organizer';
+
+    if (!orgId) {
+      return NextResponse.json({ error: 'Organizer wallet address is required to create a circle' }, { status: 400 });
+    }
 
     const circleId = body.id || `circle_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const orgId = body.organizer_id || walletAddress;
 
     const circle: ServerCircle = {
       id: circleId,
@@ -29,7 +34,7 @@ export async function POST(req: NextRequest) {
       organizer: body.organizer || {
         id: orgId,
         nimiq_address: orgId,
-        display_name: 'Organizer',
+        display_name: orgName,
       },
       memberships: body.memberships || [
         {
@@ -40,7 +45,7 @@ export async function POST(req: NextRequest) {
           user: {
             id: orgId,
             nimiq_address: orgId,
-            display_name: 'Organizer',
+            display_name: orgName,
           }
         }
       ],

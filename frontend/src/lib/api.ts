@@ -187,17 +187,30 @@ export async function createCircle(data: {
   contribution_amount: number;
   frequency: string;
   max_members: number;
+  organizer_id?: string;
+  organizer_name?: string;
 }): Promise<Circle> {
+  const walletAddress = data.organizer_id || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') || '' : '');
+  const walletLabel = data.organizer_name || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_label') || 'You (Organizer)' : 'You (Organizer)');
+
+  const payload = {
+    ...data,
+    organizer_id: walletAddress,
+    organizer_name: walletLabel,
+  };
+
   try {
     const res = await apiFetch<Circle>('/circles', {
       method: 'POST',
-      body: JSON.stringify(data),
+      headers: {
+        'x-wallet-address': walletAddress
+      },
+      body: JSON.stringify(payload),
     });
     saveLocalCircle(res);
     return res;
   } catch (err: any) {
     console.warn('[Rosco] Backend createCircle unreachable, saving locally:', err);
-    const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') || 'NQ750000000000000000000000000000' : 'NQ750000000000000000000000000000';
     const localCircle: Circle = {
       id: `circle_${Date.now()}`,
       name: data.name,
@@ -214,7 +227,7 @@ export async function createCircle(data: {
       organizer: {
         id: walletAddress,
         nimiq_address: walletAddress,
-        display_name: 'You (Organizer)',
+        display_name: walletLabel,
       },
       memberships: [
         {
@@ -225,7 +238,7 @@ export async function createCircle(data: {
           user: {
             id: walletAddress,
             nimiq_address: walletAddress,
-            display_name: 'You (Organizer)',
+            display_name: walletLabel,
           }
         }
       ],
@@ -269,7 +282,7 @@ export async function getCircle(id: string): Promise<Circle> {
         const urlParams = new URLSearchParams(window.location.search);
         const name = urlParams.get('name');
         if (name) {
-          const org = urlParams.get('org') || 'NQ750000000000000000000000000000';
+          const org = urlParams.get('org') || '';
           const fallbackCircle: Circle = {
             id,
             name: decodeURIComponent(name),
@@ -328,7 +341,7 @@ export async function joinCircle(circleId: string): Promise<{ id: string; status
     const localCircles = getLocalCircles();
     const found = localCircles.find(c => c.id === circleId);
     if (found) {
-      const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') || 'NQ750000000000000000000000000000' : 'NQ750000000000000000000000000000';
+      const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') || '' : '';
       if (!found.memberships) found.memberships = [];
       const existing = found.memberships.find(m => m.user_id === walletAddress);
       if (!existing) {

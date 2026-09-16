@@ -10,7 +10,10 @@ export async function POST(
     return NextResponse.json({ error: 'Circle not found' }, { status: 404 });
   }
 
-  const walletAddress = req.headers.get('x-wallet-address') || 'NQ750000000000000000000000000000';
+  const walletAddress = req.headers.get('x-wallet-address') || '';
+  if (!walletAddress) {
+    return NextResponse.json({ error: 'Wallet address required to join circle' }, { status: 400 });
+  }
   if (!circle.memberships) circle.memberships = [];
 
   const existing = circle.memberships.find(m => m.user_id === walletAddress);

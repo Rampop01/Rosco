@@ -3,7 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const address = body.nimiq_address || 'NQ750000000000000000000000000000';
+    const address = body.nimiq_address;
+    if (!address) {
+      return NextResponse.json({ error: 'Nimiq address is required' }, { status: 400 });
+    }
     const user = {
       id: address,
       nimiq_address: address,

@@ -4,9 +4,11 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '../../components/Header';
 import { createCircle } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 
 export default function CreateCirclePage() {
   const router = useRouter();
+  const { wallet, user, connectWallet } = useAuth();
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('100');
   const [frequency, setFrequency] = useState<'DAILY' | 'WEEKLY' | 'MONTHLY'>('WEEKLY');
@@ -24,11 +26,30 @@ export default function CreateCirclePage() {
     try {
       setIsSubmitting(true);
       setError(null);
+
+      let activeAddr = wallet?.address || user?.nimiq_address || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null);
+      if (!activeAddr) {
+        try {
+          await connectWallet();
+          activeAddr = typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null;
+        } catch {
+          setError('Please connect your Nimiq Pay wallet to create a circle');
+          return;
+        }
+      }
+
+      if (!activeAddr) {
+        setError('Please connect your Nimiq Pay wallet first');
+        return;
+      }
+
       const circle = await createCircle({
         name: name.trim(),
         contribution_amount: parseFloat(amount || '0'),
         frequency,
         max_members: parseInt(maxMembers || '5', 10),
+        organizer_id: activeAddr,
+        organizer_name: user?.display_name || wallet?.label || 'Organizer',
       });
 
       router.push(`/circle/${circle.id}`);

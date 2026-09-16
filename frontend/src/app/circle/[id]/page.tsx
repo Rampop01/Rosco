@@ -25,7 +25,7 @@ export default function CircleDetailPage() {
   const params = useParams();
   const router = useRouter();
   const circleId = params.id as string;
-  const { user, connectWallet } = useAuth();
+  const { wallet, user, connectWallet } = useAuth();
 
   const [circle, setCircle] = useState<Circle | null>(null);
   const [currentRound, setCurrentRound] = useState<RoundInfo | null>(null);
@@ -38,16 +38,45 @@ export default function CircleDetailPage() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const clean = (addr?: string | null) => (addr ? addr.replace(/\s+/g, '').toUpperCase() : '');
+
   useEffect(() => {
     if (circleId) {
       loadCircleData();
     }
-  }, [circleId, user?.id]);
+  }, [circleId, user?.id, wallet?.address]);
 
   const loadCircleData = async () => {
     try {
       setLoading(true);
       const data = await getCircle(circleId);
+
+      // Auto-heal dummy address if creator visits with real wallet
+      const myRealAddr = wallet?.address || user?.nimiq_address || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null);
+      if (myRealAddr && data.organizer_id && data.organizer_id.startsWith('NQ750000000000000000000000000000')) {
+        data.organizer_id = myRealAddr;
+        if (data.organizer) {
+          data.organizer.id = myRealAddr;
+          data.organizer.nimiq_address = myRealAddr;
+          data.organizer.display_name = user?.display_name || wallet?.label || 'Organizer';
+        }
+        if (data.memberships && data.memberships.length > 0 && data.memberships[0].user_id.startsWith('NQ750000000000000000000000000000')) {
+          data.memberships[0].user_id = myRealAddr;
+          if (data.memberships[0].user) {
+            data.memberships[0].user.id = myRealAddr;
+            data.memberships[0].user.nimiq_address = myRealAddr;
+            data.memberships[0].user.display_name = user?.display_name || wallet?.label || 'Organizer';
+          }
+        }
+        try {
+          fetch('/api/circles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          }).catch(() => {});
+        } catch {}
+      }
+
       setCircle(data);
 
       if (data.status === 'ACTIVE') {
@@ -84,7 +113,11 @@ export default function CircleDetailPage() {
         }
       }
 
-      if (user && data.organizer_id === user.id && data.status === 'FORMING') {
+      const activeWallet = clean(wallet?.address || user?.nimiq_address || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null));
+      const orgWallet = clean(data.organizer_id);
+      const isOrgCheck = activeWallet && orgWallet && activeWallet === orgWallet;
+
+      if (isOrgCheck && data.status === 'FORMING') {
         const requests = await getJoinRequests(circleId);
         setJoinRequests(requests);
         const pendingCount = requests.filter(r => r.status === 'PENDING').length;
@@ -108,10 +141,25 @@ export default function CircleDetailPage() {
     }
   };
 
-  const isOrganizer = user && circle?.organizer_id === user.id;
-  const myMembership = circle?.memberships?.find(m => m.user_id === user?.id);
-  const isMember = myMembership?.status === 'APPROVED';
-  const hasRequested = myMembership?.status === 'PENDING';
+  const activeWalletAddr = clean(
+    wallet?.address ||
+    user?.nimiq_address ||
+    (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null)
+  );
+  const orgAddr = clean(circle?.organizer_id || circle?.organizer?.nimiq_address);
+
+  // The organizer is the creator of the circle
+  const isOrganizer = !!(activeWalletAddr && orgAddr && activeWalletAddr === orgAddr);
+
+  // Find membership
+  const myMembership = circle?.memberships?.find(m => {
+    const memberAddr = clean(m.user_id || m.user?.nimiq_address);
+    return activeWalletAddr && memberAddr && activeWalletAddr === memberAddr;
+  });
+
+  // The creator is ALWAYS automatically an approved member of their own circle!
+  const isMember = isOrganizer || myMembership?.status === 'APPROVED';
+  const hasRequested = !isOrganizer && myMembership?.status === 'PENDING';
 
   const handleJoin = async () => {
     try {
@@ -279,7 +327,7 @@ export default function CircleDetailPage() {
         {/* ─── FORMING STATE ────────────────────────────────────────────────── */}
         {circle.status === 'FORMING' && (
           <div>
-            {!isMember && !hasRequested && (
+            {!isOrganizer && !isMember && !hasRequested && (
               <div className="glass-card" style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
                 <h4>Join this Savings Circle</h4>
                 <p className="text-muted" style={{ fontSize: '0.85rem', margin: '0.5rem 0 1rem' }}>
@@ -296,6 +344,29 @@ export default function CircleDetailPage() {
                 <h4 style={{ color: 'var(--status-pending)' }}>⏳ Request Pending</h4>
                 <p className="text-muted" style={{ fontSize: '0.85rem', marginTop: '0.4rem' }}>
                   The circle organizer will review your request shortly.
+                </p>
+              </div>
+            )}
+
+            {isMember && !isOrganizer && (
+              <div className="glass-card" style={{ textAlign: 'center', marginBottom: '1.25rem', borderColor: 'rgba(16, 185, 129, 0.4)' }}>
+                <h4 style={{ color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+                  <CheckCircle2 style={{ width: '18px', height: '18px' }} />
+                  You are a Member
+                </h4>
+                <p className="text-muted" style={{ fontSize: '0.85rem', marginTop: '0.35rem' }}>
+                  Waiting for the organizer to start the circle. You will be notified when Round 1 begins!
+                </p>
+              </div>
+            )}
+
+            {isOrganizer && (
+              <div className="glass-card" style={{ textAlign: 'center', marginBottom: '1.25rem', borderColor: 'rgba(0, 102, 255, 0.3)' }}>
+                <h4 style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+                  👑 You are the Circle Organizer
+                </h4>
+                <p className="text-muted" style={{ fontSize: '0.85rem', marginTop: '0.35rem' }}>
+                  Share the invite link with friends to fill all {circle.max_members} spots, then launch the circle.
                 </p>
               </div>
             )}
@@ -322,24 +393,29 @@ export default function CircleDetailPage() {
               <div className="glass-card" style={{ marginBottom: '1.25rem' }}>
                 <h4 style={{ fontSize: '1rem', marginBottom: '0.85rem' }}>Approved Members</h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                  {approvedMembers.map((m, idx) => (
-                    <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-sm)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--bg-card-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem' }}>
-                          #{idx + 1}
+                  {approvedMembers.map((m, idx) => {
+                    const isThisOrg = clean(m.user_id || m.user?.nimiq_address) === orgAddr;
+                    return (
+                      <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-sm)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--bg-card-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem' }}>
+                            #{idx + 1}
+                          </div>
+                          <div>
+                            <strong style={{ fontSize: '0.9rem', display: 'block' }}>
+                              {m.user?.display_name || (isThisOrg ? 'Organizer' : 'Member')}
+                            </strong>
+                            <span className="text-muted" style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>
+                              {m.user?.nimiq_address ? `${m.user.nimiq_address.slice(0, 10)}...` : 'Nimiq Wallet'}
+                            </span>
+                          </div>
                         </div>
-                        <div>
-                          <strong style={{ fontSize: '0.9rem', display: 'block' }}>{m.user?.display_name || 'Member'}</strong>
-                          <span className="text-muted" style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>
-                            {m.user?.nimiq_address.slice(0, 10)}...
-                          </span>
-                        </div>
+                        {isThisOrg && (
+                          <span className="badge badge-active" style={{ fontSize: '0.65rem' }}>Organizer</span>
+                        )}
                       </div>
-                      {m.user_id === circle.organizer_id && (
-                        <span className="badge badge-active" style={{ fontSize: '0.65rem' }}>Organizer</span>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
