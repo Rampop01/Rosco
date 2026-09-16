@@ -373,16 +373,45 @@ export default function CircleDetailPage() {
 
             {/* Organizer Tabs */}
             {isOrganizer && (
-              <div className="nav-tabs" style={{ margin: '0 0 1.25rem 0' }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '0.5rem',
+                background: '#F1F5F9',
+                padding: '0.35rem',
+                borderRadius: '14px',
+                marginBottom: '1.25rem',
+                border: '1px solid #E2E8F0'
+              }}>
                 <button 
-                  className={`nav-tab ${activeTab === 'details' ? 'active' : ''}`}
                   onClick={() => setActiveTab('details')}
+                  style={{
+                    padding: '0.65rem 1rem',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: activeTab === 'details' ? '#0066FF' : 'transparent',
+                    color: activeTab === 'details' ? '#FFFFFF' : '#475569',
+                    fontWeight: 700,
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
                 >
                   Members ({approvedMembers.length})
                 </button>
                 <button 
-                  className={`nav-tab ${activeTab === 'requests' ? 'active' : ''}`}
                   onClick={() => setActiveTab('requests')}
+                  style={{
+                    padding: '0.65rem 1rem',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: activeTab === 'requests' ? '#0066FF' : 'transparent',
+                    color: activeTab === 'requests' ? '#FFFFFF' : '#475569',
+                    fontWeight: 700,
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
                 >
                   Join Requests {pendingCount > 0 && `(${pendingCount})`}
                 </button>
@@ -395,23 +424,26 @@ export default function CircleDetailPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                   {approvedMembers.map((m, idx) => {
                     const isThisOrg = clean(m.user_id || m.user?.nimiq_address) === orgAddr;
+                    const rawAddr = (m.user?.nimiq_address || '').replace(/\s+/g, '');
+                    const shortAddr = rawAddr ? `${rawAddr.slice(0, 4)}...${rawAddr.slice(-4)}` : 'Nimiq Wallet';
+
                     return (
-                      <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-sm)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--bg-card-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem' }}>
+                      <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.65rem 0.85rem', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                          <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', fontWeight: 700, color: '#334155' }}>
                             #{idx + 1}
                           </div>
                           <div>
-                            <strong style={{ fontSize: '0.9rem', display: 'block' }}>
+                            <strong style={{ fontSize: '0.92rem', display: 'block', color: '#0F172A' }}>
                               {m.user?.display_name || (isThisOrg ? 'Organizer' : 'Member')}
                             </strong>
-                            <span className="text-muted" style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>
-                              {m.user?.nimiq_address ? `${m.user.nimiq_address.slice(0, 10)}...` : 'Nimiq Wallet'}
+                            <span style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: '#475569', fontWeight: 600 }}>
+                              {shortAddr}
                             </span>
                           </div>
                         </div>
                         {isThisOrg && (
-                          <span className="badge badge-active" style={{ fontSize: '0.65rem' }}>Organizer</span>
+                          <span className="badge badge-active" style={{ fontSize: '0.7rem', fontWeight: 700 }}>Organizer</span>
                         )}
                       </div>
                     );
