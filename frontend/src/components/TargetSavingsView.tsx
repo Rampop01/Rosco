@@ -10,12 +10,15 @@ import {
   deletePersonalGoal
 } from '../lib/target-savings';
 import { requestPayment } from '../lib/nimiq-pay';
-import { Plus, Target, CheckCircle2, Trash2, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { CountdownTimer } from './CountdownTimer';
+import { Plus, Target, CheckCircle2, Trash2, ArrowUpRight, ArrowDownLeft, Clock } from 'lucide-react';
 
 interface TargetSavingsViewProps {
   userId: string;
   userAddress: string;
 }
+
+const ROSCO_VAULT_ADDRESS = process.env.NEXT_PUBLIC_ROSCO_VAULT_ADDRESS || 'NQ87 SAV1 NGSV AULT 0000 0000 0000 0000 0000';
 
 const CATEGORY_ICONS: Record<string, string> = {
   Tech: '💻',
@@ -39,6 +42,7 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
   const [newCategory, setNewCategory] = useState<PersonalGoal['category']>('Tech');
   const [newFrequency, setNewFrequency] = useState<PersonalGoal['frequency']>('Weekly');
   const [initialDeposit, setInitialDeposit] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
 
   // Form state for deposit
   const [depositAmount, setDepositAmount] = useState('');
@@ -58,15 +62,44 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
     setGoals(list);
   };
 
-  const handleCreateGoal = (e: React.FormEvent) => {
+  const handleCreateGoal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !newTarget) return;
+
+    const initAmt = initialDeposit ? parseFloat(initialDeposit) : 0;
+    let initTxHash: string | undefined;
+
+    if (initAmt > 0) {
+      try {
+        setIsProcessing(true);
+        setCreateError(null);
+
+        // Deduct from NIM balance via Nimiq Pay native payment sheet
+        const payRes = await requestPayment({
+          recipient: ROSCO_VAULT_ADDRESS,
+          amount: initAmt,
+          message: `Rosco Vault Init: ${newTitle.trim()}`,
+        });
+
+        if (!payRes.success) {
+          throw new Error(payRes.error || 'Payment was cancelled or rejected in Nimiq Pay');
+        }
+        initTxHash = payRes.txHash;
+      } catch (err: any) {
+        setCreateError(err.message || 'Payment cancelled. Goal not created.');
+        setIsProcessing(false);
+        return;
+      } finally {
+        setIsProcessing(false);
+      }
+    }
 
     createPersonalGoal({
       user_id: userId,
       title: newTitle.trim(),
       target_amount: parseFloat(newTarget),
-      initial_deposit: initialDeposit ? parseFloat(initialDeposit) : 0,
+      initial_deposit: initAmt,
+      tx_hash: initTxHash,
       category: newCategory,
       frequency: newFrequency,
     });
@@ -89,28 +122,24 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
       setIsProcessing(true);
       setDepositError(null);
 
-      // Attempt Nimiq Pay transaction if running inside Nimiq Pay
-      let txHash: string | undefined;
-      try {
-        const payRes = await requestPayment({
-          recipient: userAddress,
-          amount: amt,
-          message: `Rosco Vault: ${activeDepositGoal.title}`,
-        });
-        if (payRes && payRes.txHash) {
-          txHash = payRes.txHash;
-        }
-      } catch (payErr) {
-        console.log('[Rosco] Nimiq Pay prompt skipped or rejected; recording local deposit:', payErr);
+      // Deduct from NIM balance via Nimiq Pay native payment sheet
+      const payRes = await requestPayment({
+        recipient: ROSCO_VAULT_ADDRESS,
+        amount: amt,
+        message: `Rosco Vault Deposit: ${activeDepositGoal.title}`,
+      });
+
+      if (!payRes.success) {
+        throw new Error(payRes.error || 'Payment was cancelled or rejected in Nimiq Pay');
       }
 
-      depositToPersonalGoal(activeDepositGoal.id, amt, txHash, depositNote.trim() || 'Personal Deposit');
+      depositToPersonalGoal(activeDepositGoal.id, amt, payRes.txHash, depositNote.trim() || 'Target contribution');
       setDepositAmount('');
       setDepositNote('');
       setActiveDepositGoal(null);
       loadGoals();
     } catch (err: any) {
-      setDepositError(err.message || 'Deposit failed');
+      setDepositError(err.message || 'Deposit cancelled');
     } finally {
       setIsProcessing(false);
     }
@@ -363,6 +392,36 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
                         </span>
                       )}
                     </div>
+
+                    {/* Next Contribution Countdown for Scheduled Goals */}
+                    {(() => {
+                      if (goal.is_completed) return null;
+                      const lastDeposit = goal.deposits && goal.deposits.length > 0 ? goal.deposits[0] : null;
+                      const baseTime = lastDeposit ? new Date(lastDeposit.date).getTime() : new Date(goal.created_at).getTime();
+                      let intervalMs = 0;
+                      if (goal.frequency === 'Daily') intervalMs = 24 * 60 * 60 * 1000;
+                      else if (goal.frequency === 'Weekly') intervalMs = 7 * 24 * 60 * 60 * 1000;
+                      else if (goal.frequency === 'Monthly') intervalMs = 30 * 24 * 60 * 60 * 1000;
+                      else return null;
+
+                      const nextTime = baseTime + intervalMs;
+                      return (
+                        <div style={{
+                          marginTop: '0.75rem',
+                          padding: '0.5rem 0.75rem',
+                          background: '#F8FAFC',
+                          borderRadius: '10px',
+                          border: '1px solid #E2E8F0',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          fontSize: '0.78rem'
+                        }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Next Scheduled Deposit:</span>
+                          <CountdownTimer targetDate={nextTime} compact={true} />
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -431,6 +490,20 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
                 ✕
               </button>
             </div>
+
+            {createError && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#DC2626',
+                padding: '0.6rem 0.85rem',
+                borderRadius: '10px',
+                fontSize: '0.85rem',
+                marginBottom: '1rem'
+              }}>
+                {createError}
+              </div>
+            )}
 
             <form onSubmit={handleCreateGoal}>
               <div className="form-group" style={{ marginBottom: '1rem' }}>
@@ -513,9 +586,12 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
               <button
                 type="submit"
                 className="btn-primary"
-                style={{ width: '100%', padding: '0.85rem', fontSize: '1rem', fontWeight: 800 }}
+                disabled={isProcessing}
+                style={{ width: '100%', padding: '0.85rem', fontSize: '1rem', fontWeight: 800, cursor: isProcessing ? 'not-allowed' : 'pointer' }}
               >
-                Create Goal
+                {isProcessing 
+                  ? 'Confirming with Nimiq Pay...' 
+                  : (initialDeposit && parseFloat(initialDeposit) > 0 ? `Pay ${initialDeposit} NIM & Create Goal` : 'Create Goal')}
               </button>
             </form>
           </div>
@@ -591,9 +667,11 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
                 type="submit"
                 className="btn-primary"
                 disabled={isProcessing}
-                style={{ width: '100%', padding: '0.85rem', fontSize: '1rem', fontWeight: 800 }}
+                style={{ width: '100%', padding: '0.85rem', fontSize: '1rem', fontWeight: 800, cursor: isProcessing ? 'not-allowed' : 'pointer' }}
               >
-                {isProcessing ? 'Processing Deposit...' : 'Confirm Deposit'}
+                {isProcessing 
+                  ? 'Confirming with Nimiq Pay...' 
+                  : (depositAmount && parseFloat(depositAmount) > 0 ? `Pay ${depositAmount} NIM via Nimiq Pay` : 'Confirm Deposit')}
               </button>
             </form>
           </div>

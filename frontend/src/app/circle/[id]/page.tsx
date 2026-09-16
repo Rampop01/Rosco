@@ -4,7 +4,9 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Header } from '../../../components/Header';
 import { ContributeModal } from '../../../components/ContributeModal';
+import { CountdownTimer } from '../../../components/CountdownTimer';
 import { useAuth } from '../../../context/AuthContext';
+import { CheckCircle2, Lock } from 'lucide-react';
 import {
   getCircle,
   joinCircle,
@@ -338,18 +340,86 @@ export default function CircleDetailPage() {
                   {currentRound.recipient?.nimiq_address}
                 </span>
 
-                {user && currentRound.recipient_id === user.id && (
-                  <div style={{ marginTop: '0.5rem', background: 'rgba(5, 213, 170, 0.15)', border: '1px solid var(--accent-cyan)', padding: '0.4rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', color: 'var(--accent-cyan)', fontWeight: 600, textAlign: 'center' }}>
-                    🎉 It's your turn to receive the pot this round!
+                {user && (currentRound.recipient_id === user.id || currentRound.recipient?.nimiq_address === user.nimiq_address) && (
+                  <div style={{ marginTop: '0.65rem', background: 'rgba(5, 213, 170, 0.15)', border: '1px solid var(--accent-cyan)', padding: '0.65rem', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: 'var(--accent-cyan)', fontWeight: 700, textAlign: 'center' }}>
+                    🎉 You are the recipient for this round! You will receive the gathered pot directly to your wallet.
                   </div>
                 )}
               </div>
 
-              {/* Action Button */}
+              {/* Action Button & Contribution Lock with Countdown */}
               {isMember && (
-                <button className="btn-primary" onClick={() => setShowPayModal(true)}>
-                  💳 Pay Round ({circle.contribution_amount} {circle.currency})
-                </button>
+                (() => {
+                  const isRecipient = user && (currentRound.recipient_id === user.id || currentRound.recipient?.nimiq_address === user.nimiq_address);
+                  const myContrib = currentRound.contributions?.find(
+                    c => c.contributor_id === user?.id || c.contributor?.nimiq_address === user?.nimiq_address
+                  );
+                  const hasPaid = myContrib?.status === 'CONFIRMED';
+                  const roundDueDate = currentRound.due_date || new Date(Date.now() + 7 * 86400000).toISOString();
+
+                  if (isRecipient) {
+                    return null;
+                  }
+
+                  if (hasPaid) {
+                    return (
+                      <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <div style={{
+                          background: 'rgba(16, 185, 129, 0.15)',
+                          border: '1px solid #10B981',
+                          borderRadius: '12px',
+                          padding: '0.85rem 1rem',
+                          textAlign: 'center',
+                          color: '#10B981'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontWeight: 800 }}>
+                            <CheckCircle2 style={{ width: '18px', height: '18px' }} />
+                            <span>Round {currentRound.round_number} Contribution Paid</span>
+                          </div>
+                          <p style={{ fontSize: '0.82rem', color: '#CBD5E1', marginTop: '0.25rem' }}>
+                            You cannot contribute again until the current round finishes and the next round begins.
+                          </p>
+                        </div>
+
+                        <CountdownTimer 
+                          targetDate={roundDueDate} 
+                          label="Next Round Contribution Opens In" 
+                        />
+
+                        <button 
+                          className="btn-secondary" 
+                          disabled 
+                          style={{
+                            width: '100%',
+                            opacity: 0.6,
+                            cursor: 'not-allowed',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.4rem',
+                            padding: '0.75rem'
+                          }}
+                        >
+                          <Lock style={{ width: '15px', height: '15px' }} />
+                          <span>Contribution Locked Until Next Round</span>
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      <CountdownTimer 
+                        targetDate={roundDueDate} 
+                        label="Round Contribution Deadline" 
+                      />
+
+                      <button className="btn-primary" onClick={() => setShowPayModal(true)} style={{ width: '100%', padding: '0.9rem' }}>
+                        💳 Pay Round ({circle.contribution_amount} {circle.currency})
+                      </button>
+                    </div>
+                  );
+                })()
               )}
             </div>
 
