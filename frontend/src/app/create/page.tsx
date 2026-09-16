@@ -43,7 +43,7 @@ export default function CreateCirclePage() {
 
   return (
     <div>
-      <Header title="Create Circle" onBack={() => router.push('/')} />
+      <Header title="" onBack={() => router.push('/')} />
 
       <main style={{ padding: '1rem 0', maxWidth: '580px', margin: '0 auto' }}>
         <form onSubmit={handleSubmit} className="glass-card animate-fade-in" style={{ padding: '1.75rem' }}>

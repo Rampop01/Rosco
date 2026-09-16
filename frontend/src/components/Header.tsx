@@ -47,18 +47,20 @@ export const Header: React.FC<HeaderProps> = ({ title, onBack, onShowLanding, is
             <div className="brand-icon">
               R
             </div>
-            <div 
-              className="brand-title"
-              style={{
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                fontSize: title ? '1.1rem' : '1.35rem',
-                maxWidth: onBack ? '140px' : '220px'
-              }}
-            >
-              {title || 'Rosco'}
-            </div>
+            {title !== '' && (
+              <div 
+                className="brand-title"
+                style={{
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  fontSize: title ? '1.1rem' : '1.35rem',
+                  maxWidth: onBack ? '140px' : '220px'
+                }}
+              >
+                {title || 'Rosco'}
+              </div>
+            )}
           </div>
         </div>
 
