@@ -160,22 +160,35 @@ export default function Home() {
           <>
             {/* User Hero & Stat Summary Overview */}
             <div className="glass-card" style={{
-              background: 'linear-gradient(135deg, rgba(22, 28, 48, 0.9), rgba(12, 16, 28, 0.95))',
+              background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
               marginBottom: '2rem',
-              border: '1px solid var(--border-glow)',
-              padding: '2rem'
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              borderRadius: '20px',
+              padding: '2rem',
+              boxShadow: '0 10px 30px -5px rgba(0, 0, 0, 0.25)'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.2rem' }}>
-                    <span className="badge badge-active" style={{ fontSize: '0.7rem' }}>Connected</span>
-                    <span className="text-muted" style={{ fontSize: '0.85rem' }}>Nimiq Pay Protocol</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+                    <span className="badge badge-active" style={{ fontSize: '0.72rem', fontWeight: 700 }}>● Connected</span>
+                    <span style={{ fontSize: '0.82rem', color: '#94A3B8', fontWeight: 600 }}>Nimiq Pay Protocol</span>
                   </div>
-                  <h2 style={{ fontSize: '1.8rem', marginBottom: '0.25rem' }}>
+                  <h2 style={{ fontSize: '1.85rem', fontWeight: 800, marginBottom: '0.4rem', color: '#FFFFFF', letterSpacing: '-0.02em' }}>
                     {user.display_name || 'Savings Member'}
                   </h2>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginTop: '0.3rem' }}>
-                    <span className="text-secondary" style={{ fontSize: '0.85rem', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.4rem', flexWrap: 'wrap' }}>
+                    <span style={{
+                      fontSize: '0.9rem',
+                      fontFamily: 'monospace',
+                      color: '#F8FAFC',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      padding: '0.4rem 0.8rem',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      letterSpacing: '0.5px',
+                      wordBreak: 'break-all',
+                      fontWeight: 600
+                    }}>
                       {wallet.address}
                     </span>
                     <button
@@ -184,28 +197,31 @@ export default function Home() {
                         setAddressCopied(true);
                         setTimeout(() => setAddressCopied(false), 2000);
                       }}
-                      className="btn-secondary"
                       title="Copy full wallet address"
                       style={{
-                        padding: '0.3rem 0.7rem',
-                        fontSize: '0.78rem',
-                        background: addressCopied ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.1)',
-                        color: addressCopied ? '#10B981' : 'var(--text-secondary)',
-                        borderColor: addressCopied ? '#10B981' : 'var(--border-color)',
+                        padding: '0.42rem 0.9rem',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        background: addressCopied ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.15)',
+                        color: addressCopied ? '#34D399' : '#FFFFFF',
+                        border: addressCopied ? '1px solid #10B981' : '1px solid rgba(255, 255, 255, 0.3)',
+                        borderRadius: '8px',
                         whiteSpace: 'nowrap',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '0.35rem'
+                        gap: '0.45rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
                       }}
                     >
                       {addressCopied ? (
                         <>
-                          <Check style={{ width: '14px', height: '14px', color: '#10B981' }} />
+                          <Check style={{ width: '14px', height: '14px', color: '#34D399' }} />
                           <span>Copied!</span>
                         </>
                       ) : (
                         <>
-                          <Copy style={{ width: '14px', height: '14px' }} />
+                          <Copy style={{ width: '14px', height: '14px', color: '#FFFFFF' }} />
                           <span>Copy Address</span>
                         </>
                       )}
@@ -214,7 +230,7 @@ export default function Home() {
                 </div>
 
                 <Link href="/create" style={{ textDecoration: 'none' }}>
-                  <button className="btn-primary" style={{ padding: '0.9rem 1.85rem', fontSize: '1.05rem' }}>
+                  <button className="btn-primary" style={{ padding: '0.9rem 1.85rem', fontSize: '1.05rem', boxShadow: '0 4px 18px rgba(0, 102, 255, 0.4)' }}>
                     + Create New Circle
                   </button>
                 </Link>
