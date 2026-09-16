@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { requestPayment } from '../lib/nimiq-pay';
 import { getContributionIntent, confirmContribution, RoundInfo, Circle } from '../lib/api';
+import { addNotification } from '../lib/notifications';
 
 interface ContributeModalProps {
   circle: Circle;
@@ -45,6 +46,16 @@ export const ContributeModal: React.FC<ContributeModalProps> = ({
 
       // 3. Confirm contribution with backend
       await confirmContribution(round.id, result.txHash);
+
+      // 4. Trigger in-app notification
+      addNotification({
+        title: 'Payment Confirmed 💳',
+        message: `Successfully contributed ${circle.contribution_amount} ${circle.currency} to ${circle.name} (Round #${round.round_number}).`,
+        type: 'payment',
+        link: `/circle/${circle.id}`,
+        circle_id: circle.id,
+        amount: circle.contribution_amount
+      });
 
       setStep('success');
       setTimeout(() => {

@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
 import { Copy, Check } from 'lucide-react';
+import { NotificationCenter } from './NotificationCenter';
 
 interface HeaderProps {
   title?: string;
@@ -66,6 +67,7 @@ export const Header: React.FC<HeaderProps> = ({ title, onBack, onShowLanding, is
 
         {/* Right Navigation & Wallet State */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <NotificationCenter />
           {wallet ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
               <div 

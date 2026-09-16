@@ -11,6 +11,7 @@ import {
 } from '../lib/target-savings';
 import { requestPayment } from '../lib/nimiq-pay';
 import { CountdownTimer } from './CountdownTimer';
+import { addNotification } from '../lib/notifications';
 import { Plus, Target, CheckCircle2, Trash2, ArrowUpRight, ArrowDownLeft, Clock } from 'lucide-react';
 
 interface TargetSavingsViewProps {
@@ -104,6 +105,13 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
       frequency: newFrequency,
     });
 
+    addNotification({
+      title: 'Target Savings Created 🎯',
+      message: `Goal "${newTitle.trim()}" set with a target of ${newTarget} NIM.${initAmt > 0 ? ` Initial deposit: ${initAmt} NIM.` : ''}`,
+      type: 'goal_reached',
+      amount: parseFloat(newTarget)
+    });
+
     setNewTitle('');
     setNewTarget('');
     setInitialDeposit('');
@@ -133,7 +141,24 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
         throw new Error(payRes.error || 'Payment was cancelled or rejected in Nimiq Pay');
       }
 
-      depositToPersonalGoal(activeDepositGoal.id, amt, payRes.txHash, depositNote.trim() || 'Target contribution');
+      const updated = depositToPersonalGoal(activeDepositGoal.id, amt, payRes.txHash, depositNote.trim() || 'Target contribution');
+
+      addNotification({
+        title: 'Target Deposit Confirmed 💳',
+        message: `Deposited ${amt} NIM into target "${activeDepositGoal.title}".`,
+        type: 'payment',
+        amount: amt
+      });
+
+      if (updated && updated.current_amount >= updated.target_amount) {
+        addNotification({
+          title: 'Goal Achieved! 🎉',
+          message: `Congratulations! You reached your savings goal of ${updated.target_amount} NIM for "${updated.title}"!`,
+          type: 'goal_reached',
+          amount: updated.target_amount
+        });
+      }
+
       setDepositAmount('');
       setDepositNote('');
       setActiveDepositGoal(null);

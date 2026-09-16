@@ -19,6 +19,7 @@ import {
   JoinRequest,
   RoundInfo,
 } from '../../../lib/api';
+import { addNotification } from '../../../lib/notifications';
 
 export default function CircleDetailPage() {
   const params = useParams();
@@ -51,12 +52,53 @@ export default function CircleDetailPage() {
 
       if (data.status === 'ACTIVE') {
         const roundRes = await getCurrentRound(circleId);
-        setCurrentRound(roundRes.current_round);
+        if (roundRes?.current_round) {
+          setCurrentRound(roundRes.current_round);
+
+          // Alert user of upcoming contribution if not already notified
+          const notifKey = `rosco_notified_round_${roundRes.current_round.id}`;
+          if (typeof window !== 'undefined' && !localStorage.getItem(notifKey)) {
+            addNotification({
+              title: 'Next Contribution Due',
+              message: `Round #${roundRes.current_round.round_number} of ${data.name} is active. Contribution of ${data.contribution_amount} NIM is due.`,
+              type: 'contribution_due',
+              link: `/circle/${circleId}`,
+              circle_id: circleId,
+              amount: data.contribution_amount
+            });
+            localStorage.setItem(notifKey, 'true');
+          }
+
+          // Alert user if they are the winner/recipient of this round
+          const winnerKey = `rosco_notified_winner_${roundRes.current_round.id}`;
+          if (user && roundRes.current_round.recipient_id === user.id && !localStorage.getItem(winnerKey)) {
+            addNotification({
+              title: 'You Are The Round Recipient! 🏆',
+              message: `You are scheduled to receive the round payout in ${data.name}!`,
+              type: 'round_winner',
+              link: `/circle/${circleId}`,
+              circle_id: circleId
+            });
+            localStorage.setItem(winnerKey, 'true');
+          }
+        }
       }
 
       if (user && data.organizer_id === user.id && data.status === 'FORMING') {
         const requests = await getJoinRequests(circleId);
         setJoinRequests(requests);
+        const pendingCount = requests.filter(r => r.status === 'PENDING').length;
+        const reqKey = `rosco_notified_req_${circleId}_${pendingCount}`;
+        if (pendingCount > 0 && typeof window !== 'undefined' && !sessionStorage.getItem(reqKey)) {
+          addNotification({
+            title: 'New Join Requests 👥',
+            message: `${pendingCount} member(s) requested to join ${data.name}. Review them now.`,
+            type: 'join',
+            link: `/circle/${circleId}`,
+            circle_id: circleId
+          });
+          sessionStorage.setItem(reqKey, 'true');
+        }
       }
     } catch (err: any) {
       console.error('Failed to load circle:', err);
@@ -78,6 +120,13 @@ export default function CircleDetailPage() {
         await connectWallet();
       }
       await joinCircle(circleId);
+      addNotification({
+        title: 'Joined Circle 👥',
+        message: `You requested or joined ${circle?.name || 'the circle'}!`,
+        type: 'join',
+        link: `/circle/${circleId}`,
+        circle_id: circleId
+      });
       await loadCircleData();
     } catch (err: any) {
       alert(err.message || 'Failed to request join');
@@ -90,6 +139,13 @@ export default function CircleDetailPage() {
     try {
       setActionLoading(true);
       await approveJoinRequest(circleId, membershipId);
+      addNotification({
+        title: 'Member Approved 👥',
+        message: `A member request was approved in ${circle?.name}.`,
+        type: 'join',
+        link: `/circle/${circleId}`,
+        circle_id: circleId
+      });
       await loadCircleData();
     } catch (err: any) {
       alert(err.message);
@@ -115,6 +171,13 @@ export default function CircleDetailPage() {
     try {
       setActionLoading(true);
       await startCircle(circleId);
+      addNotification({
+        title: 'Circle Started! 🚀',
+        message: `${circle?.name} is now active! Payout order has been generated.`,
+        type: 'system',
+        link: `/circle/${circleId}`,
+        circle_id: circleId
+      });
       await loadCircleData();
     } catch (err: any) {
       alert(err.message);
@@ -124,7 +187,17 @@ export default function CircleDetailPage() {
   };
 
   const copyInviteLink = () => {
-    const url = window.location.href;
+    if (!circle) return;
+    const params = new URLSearchParams({
+      name: circle.name,
+      amt: String(circle.contribution_amount),
+      freq: circle.frequency,
+      max: String(circle.max_members),
+      org: circle.organizer_id,
+      curr: circle.currency || 'NIM',
+      status: circle.status || 'FORMING'
+    });
+    const url = `${window.location.origin}/circle/${circle.id}?${params.toString()}`;
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);

@@ -3,7 +3,7 @@
  * Handles JWT token storage, injection, and error handling.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '/api' : 'http://localhost:3000/api');
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -262,6 +262,61 @@ export async function getCircle(id: string): Promise<Circle> {
     const localCircles = getLocalCircles();
     const found = localCircles.find(c => c.id === id);
     if (found) return found;
+
+    // Zero-dependency fallback for invite links opened on other devices / fresh browsers
+    if (typeof window !== 'undefined') {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const name = urlParams.get('name');
+        if (name) {
+          const org = urlParams.get('org') || 'NQ750000000000000000000000000000';
+          const fallbackCircle: Circle = {
+            id,
+            name: decodeURIComponent(name),
+            organizer_id: org,
+            contribution_amount: Number(urlParams.get('amt')) || 10,
+            currency: urlParams.get('curr') || 'NIM',
+            frequency: urlParams.get('freq') || 'WEEKLY',
+            min_members: 3,
+            max_members: Number(urlParams.get('max')) || 5,
+            status: (urlParams.get('status') as any) || 'FORMING',
+            payout_order: null,
+            start_date: null,
+            created_at: new Date().toISOString(),
+            organizer: {
+              id: org,
+              nimiq_address: org,
+              display_name: 'Circle Organizer',
+            },
+            memberships: [
+              {
+                id: `m_${id}_org`,
+                user_id: org,
+                status: 'APPROVED',
+                joined_order: 1,
+                user: {
+                  id: org,
+                  nimiq_address: org,
+                  display_name: 'Organizer',
+                }
+              }
+            ],
+            rounds: []
+          };
+          saveLocalCircle(fallbackCircle);
+          // Also persist into the server-side store
+          fetch('/api/circles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(fallbackCircle)
+          }).catch(() => {});
+          return fallbackCircle;
+        }
+      } catch (paramErr) {
+        console.warn('[Rosco] Failed to parse invite params:', paramErr);
+      }
+    }
+
     throw err;
   }
 }
