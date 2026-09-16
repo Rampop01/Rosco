@@ -52,6 +52,10 @@ export default function CreateCirclePage() {
         organizer_name: user?.display_name || wallet?.label || 'Organizer',
       });
 
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('rosco_creator_' + circle.id, 'true');
+      }
+
       router.push(`/circle/${circle.id}`);
     } catch (err: any) {
       setError(err.message || 'Failed to create circle');

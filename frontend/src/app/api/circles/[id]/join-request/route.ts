@@ -21,8 +21,8 @@ export async function POST(
     circle.memberships.push({
       id: `m_${Date.now()}`,
       user_id: walletAddress,
-      status: 'APPROVED',
-      joined_order: circle.memberships.length + 1,
+      status: 'PENDING',
+      joined_order: null,
       user: {
         id: walletAddress,
         nimiq_address: walletAddress,
@@ -32,5 +32,5 @@ export async function POST(
     saveCircle(circle);
   }
 
-  return NextResponse.json({ success: true, message: 'Joined circle' });
+  return NextResponse.json({ success: true, message: 'Join request submitted for organizer review' });
 }

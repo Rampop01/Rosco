@@ -335,30 +335,42 @@ export async function getCircle(id: string): Promise<Circle> {
 }
 
 export async function joinCircle(circleId: string): Promise<{ id: string; status: string; message: string }> {
+  const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') || '' : '';
+  const walletLabel = typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_label') || 'Member' : 'Member';
+
   try {
-    return await apiFetch(`/circles/${circleId}/join-request`, { method: 'POST' });
+    return await apiFetch(`/circles/${circleId}/join-request`, {
+      method: 'POST',
+      headers: {
+        'x-wallet-address': walletAddress
+      },
+      body: JSON.stringify({
+        user_id: walletAddress,
+        display_name: walletLabel
+      })
+    });
   } catch (err) {
     const localCircles = getLocalCircles();
     const found = localCircles.find(c => c.id === circleId);
     if (found) {
-      const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') || '' : '';
       if (!found.memberships) found.memberships = [];
-      const existing = found.memberships.find(m => m.user_id === walletAddress);
+      const clean = (a: string) => a.replace(/\s+/g, '').toUpperCase();
+      const existing = found.memberships.find(m => clean(m.user_id) === clean(walletAddress));
       if (!existing) {
         found.memberships.push({
           id: `m_${Date.now()}`,
           user_id: walletAddress,
-          status: 'APPROVED',
-          joined_order: found.memberships.length + 1,
+          status: 'PENDING',
+          joined_order: null,
           user: {
             id: walletAddress,
             nimiq_address: walletAddress,
-            display_name: 'You (Member)',
+            display_name: walletLabel,
           }
         });
         saveLocalCircle(found);
       }
-      return { id: `m_${Date.now()}`, status: 'APPROVED', message: 'Joined circle' };
+      return { id: `m_${Date.now()}`, status: 'PENDING', message: 'Join request submitted' };
     }
     throw err;
   }

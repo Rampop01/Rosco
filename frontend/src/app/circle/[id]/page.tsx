@@ -51,9 +51,10 @@ export default function CircleDetailPage() {
       setLoading(true);
       const data = await getCircle(circleId);
 
-      // Auto-heal dummy address if creator visits with real wallet
+      // Auto-heal dummy address ONLY if the circle was actually created on this device
+      const isCreatorDevice = typeof window !== 'undefined' && localStorage.getItem('rosco_creator_' + circleId) === 'true';
       const myRealAddr = wallet?.address || user?.nimiq_address || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null);
-      if (myRealAddr && data.organizer_id && data.organizer_id.startsWith('NQ750000000000000000000000000000')) {
+      if (isCreatorDevice && myRealAddr && data.organizer_id && data.organizer_id.startsWith('NQ750000000000000000000000000000')) {
         data.organizer_id = myRealAddr;
         if (data.organizer) {
           data.organizer.id = myRealAddr;
@@ -278,9 +279,19 @@ export default function CircleDetailPage() {
 
   return (
     <div style={{ paddingBottom: '2rem' }}>
-      <Header title={circle.name} onBack={() => router.push('/')} />
+      <Header onBack={() => router.push('/')} />
 
-      <main style={{ padding: '1rem 0' }}>
+      <main style={{ padding: '0.75rem 0' }}>
+        {/* Page Title Block */}
+        <div style={{ marginBottom: '1.25rem' }}>
+          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', marginBottom: '0.25rem' }}>
+            {circle.name}
+          </h2>
+          <p className="text-secondary" style={{ fontSize: '0.85rem' }}>
+            Created by {isOrganizer ? 'You (Organizer)' : (circle.organizer?.display_name || 'Organizer')}
+          </p>
+        </div>
+
         {!user && (
           <div className="glass-card animate-fade-in" style={{ textAlign: 'center', marginBottom: '1.25rem', border: '1px solid var(--border-glow)' }}>
             <h4 style={{ fontSize: '1.1rem', marginBottom: '0.3rem' }}>Join this Rosco Savings Circle</h4>
