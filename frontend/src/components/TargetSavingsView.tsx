@@ -12,14 +12,14 @@ import {
 import { requestPayment } from '../lib/nimiq-pay';
 import { CountdownTimer } from './CountdownTimer';
 import { addNotification } from '../lib/notifications';
-import { Plus, Target, CheckCircle2, Trash2, ArrowUpRight, ArrowDownLeft, Clock } from 'lucide-react';
+import { Plus, Target, CheckCircle2, Trash2, ArrowUpRight, ArrowDownLeft, Clock, Lock } from 'lucide-react';
 
 interface TargetSavingsViewProps {
   userId: string;
   userAddress: string;
 }
 
-const ROSCO_VAULT_ADDRESS = process.env.NEXT_PUBLIC_ROSCO_VAULT_ADDRESS || 'NQ87 SAV1 NGSV AULT 0000 0000 0000 0000 0000';
+const ROSCO_VAULT_ADDRESS = process.env.NEXT_PUBLIC_ROSCO_VAULT_ADDRESS || 'NQ27 U8FE BP15 QM00 D3AU BSVP J3DD 3UHG AL6U';
 
 const CATEGORY_ICONS: Record<string, string> = {
   Tech: '💻',
@@ -36,6 +36,7 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
   const [activeDepositGoal, setActiveDepositGoal] = useState<PersonalGoal | null>(null);
   const [activeWithdrawGoal, setActiveWithdrawGoal] = useState<PersonalGoal | null>(null);
   const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'COMPLETED'>('ALL');
+  const [currentTime, setCurrentTime] = useState<number>(Date.now());
 
   // Form states for creating goal
   const [newTitle, setNewTitle] = useState('');
@@ -57,6 +58,13 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
   useEffect(() => {
     loadGoals();
   }, [userId]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const loadGoals = () => {
     const list = getPersonalGoals(userId);
@@ -122,6 +130,22 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
   const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeDepositGoal || !depositAmount) return;
+
+    // Check if goal is on a fixed schedule (Daily, Weekly, Monthly) and currently locked
+    if (activeDepositGoal.frequency !== 'Flexible' && !activeDepositGoal.is_completed) {
+      const lastDeposit = activeDepositGoal.deposits && activeDepositGoal.deposits.length > 0 ? activeDepositGoal.deposits[0] : null;
+      if (lastDeposit) {
+        let intervalMs = 0;
+        if (activeDepositGoal.frequency === 'Daily') intervalMs = 24 * 60 * 60 * 1000;
+        else if (activeDepositGoal.frequency === 'Weekly') intervalMs = 7 * 24 * 60 * 60 * 1000;
+        else if (activeDepositGoal.frequency === 'Monthly') intervalMs = 30 * 24 * 60 * 60 * 1000;
+
+        if (intervalMs > 0 && Date.now() < new Date(lastDeposit.date).getTime() + intervalMs) {
+          setDepositError(`Deposits for this ${activeDepositGoal.frequency} goal are locked until the scheduled countdown expires.`);
+          return;
+        }
+      }
+    }
 
     const amt = parseFloat(depositAmount);
     if (isNaN(amt) || amt <= 0) return;
@@ -331,6 +355,18 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
           {filteredGoals.map(goal => {
             const percent = Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100));
             const icon = CATEGORY_ICONS[goal.category] || '🎯';
+            const isFlexible = goal.frequency === 'Flexible';
+            const lastDeposit = goal.deposits && goal.deposits.length > 0 ? goal.deposits[0] : null;
+
+            let intervalMs = 0;
+            if (goal.frequency === 'Daily') intervalMs = 24 * 60 * 60 * 1000;
+            else if (goal.frequency === 'Weekly') intervalMs = 7 * 24 * 60 * 60 * 1000;
+            else if (goal.frequency === 'Monthly') intervalMs = 30 * 24 * 60 * 60 * 1000;
+
+            // Only locked if scheduled (Daily, Weekly, Monthly), has a past deposit, and countdown has not reached 0
+            const baseTime = lastDeposit ? new Date(lastDeposit.date).getTime() : 0;
+            const nextTime = baseTime > 0 && intervalMs > 0 ? baseTime + intervalMs : 0;
+            const isDepositLocked = !goal.is_completed && !isFlexible && nextTime > 0 && currentTime < nextTime;
 
             return (
               <div
@@ -418,19 +454,26 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
                       )}
                     </div>
 
-                    {/* Next Contribution Countdown for Scheduled Goals */}
-                    {(() => {
-                      if (goal.is_completed) return null;
-                      const lastDeposit = goal.deposits && goal.deposits.length > 0 ? goal.deposits[0] : null;
-                      const baseTime = lastDeposit ? new Date(lastDeposit.date).getTime() : new Date(goal.created_at).getTime();
-                      let intervalMs = 0;
-                      if (goal.frequency === 'Daily') intervalMs = 24 * 60 * 60 * 1000;
-                      else if (goal.frequency === 'Weekly') intervalMs = 7 * 24 * 60 * 60 * 1000;
-                      else if (goal.frequency === 'Monthly') intervalMs = 30 * 24 * 60 * 60 * 1000;
-                      else return null;
-
-                      const nextTime = baseTime + intervalMs;
-                      return (
+                    {/* Schedule / Lock Status Display */}
+                    {!goal.is_completed && (
+                      isFlexible ? (
+                        <div style={{
+                          marginTop: '0.75rem',
+                          padding: '0.45rem 0.75rem',
+                          background: '#F8FAFC',
+                          borderRadius: '10px',
+                          border: '1px solid #E2E8F0',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          fontSize: '0.78rem'
+                        }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Deposit Schedule:</span>
+                          <span style={{ color: '#0066FF', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            ⚡ Flexible (Deposit Anytime)
+                          </span>
+                        </div>
+                      ) : isDepositLocked ? (
                         <div style={{
                           marginTop: '0.75rem',
                           padding: '0.5rem 0.75rem',
@@ -442,30 +485,72 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
                           alignItems: 'center',
                           fontSize: '0.78rem'
                         }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Next Scheduled Deposit:</span>
-                          <CountdownTimer targetDate={nextTime} compact={true} />
+                          <span style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <Lock style={{ width: '13px', height: '13px', color: '#64748B' }} />
+                            Next Scheduled Deposit:
+                          </span>
+                          <CountdownTimer targetDate={nextTime} compact={true} onExpire={() => setCurrentTime(Date.now())} />
                         </div>
-                      );
-                    })()}
+                      ) : (
+                        <div style={{
+                          marginTop: '0.75rem',
+                          padding: '0.45rem 0.75rem',
+                          background: '#ECFDF5',
+                          borderRadius: '10px',
+                          border: '1px solid #A7F3D0',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          fontSize: '0.78rem'
+                        }}>
+                          <span style={{ color: '#047857', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            ✓ Scheduled Deposit Ready
+                          </span>
+                          <span style={{ color: '#059669', fontSize: '0.75rem' }}>Open to deposit</span>
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
 
                 {/* Action Buttons */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.5rem' }}>
                   <button
-                    onClick={() => setActiveDepositGoal(goal)}
-                    className="btn-primary"
+                    onClick={() => !isDepositLocked && !goal.is_completed && setActiveDepositGoal(goal)}
+                    disabled={isDepositLocked || goal.is_completed}
+                    className={isDepositLocked || goal.is_completed ? 'btn-secondary' : 'btn-primary'}
+                    title={
+                      goal.is_completed
+                        ? 'Target goal already reached!'
+                        : isDepositLocked
+                        ? `Locked until next scheduled deposit (${goal.frequency} Plan)`
+                        : 'Deposit NIM into this goal'
+                    }
                     style={{
                       padding: '0.6rem',
                       fontSize: '0.85rem',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '0.35rem'
+                      gap: '0.35rem',
+                      cursor: (isDepositLocked || goal.is_completed) ? 'not-allowed' : 'pointer',
+                      opacity: (isDepositLocked || goal.is_completed) ? 0.7 : 1,
+                      background: isDepositLocked ? '#F1F5F9' : undefined,
+                      color: isDepositLocked ? '#64748B' : undefined,
+                      border: isDepositLocked ? '1px solid #CBD5E1' : undefined
                     }}
                   >
-                    <ArrowDownLeft style={{ width: '14px', height: '14px' }} />
-                    <span>Deposit</span>
+                    {isDepositLocked ? (
+                      <>
+                        <Lock style={{ width: '14px', height: '14px' }} />
+                        <span>Locked</span>
+                      </>
+                    ) : (
+                      <>
+                        <ArrowDownLeft style={{ width: '14px', height: '14px' }} />
+                        <span>Deposit</span>
+                      </>
+                    )}
                   </button>
 
                   <button
