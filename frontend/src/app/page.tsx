@@ -6,14 +6,16 @@ import { Header } from '../components/Header';
 import { CircleCard } from '../components/CircleCard';
 import { LandingPage } from '../components/LandingPage';
 import { getCircles, Circle } from '../lib/api';
+import { TargetSavingsView } from '../components/TargetSavingsView';
 import Link from 'next/link';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Users, Target } from 'lucide-react';
 
 export default function Home() {
   const { user, wallet, isLoading, connectWallet } = useAuth();
   const [circles, setCircles] = useState<Circle[]>([]);
   const [fetching, setFetching] = useState(false);
   const [viewMode, setViewMode] = useState<'app' | 'landing'>('landing');
+  const [appSection, setAppSection] = useState<'circles' | 'targets'>('circles');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'ACTIVE' | 'FORMING' | 'COMPLETED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [addressCopied, setAddressCopied] = useState(false);
@@ -94,96 +96,158 @@ export default function Home() {
       />
 
       <main>
-        {/* User Hero & Stat Summary Overview */}
-        <div className="glass-card" style={{
-          background: 'linear-gradient(135deg, rgba(22, 28, 48, 0.9), rgba(12, 16, 28, 0.95))',
-          marginBottom: '2rem',
-          border: '1px solid var(--border-glow)',
-          padding: '2rem'
+        {/* Savings Type Switcher (Circles vs Personal Targets) */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '0.65rem',
+          marginBottom: '1.5rem',
+          background: '#F1F5F9',
+          padding: '0.4rem',
+          borderRadius: '16px',
+          border: '1px solid #E2E8F0'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.2rem' }}>
-                <span className="badge badge-active" style={{ fontSize: '0.7rem' }}>Connected</span>
-                <span className="text-muted" style={{ fontSize: '0.85rem' }}>Nimiq Pay Protocol</span>
-              </div>
-              <h2 style={{ fontSize: '1.8rem', marginBottom: '0.25rem' }}>
-                {user.display_name || 'Savings Member'}
-              </h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginTop: '0.3rem' }}>
-                <span className="text-secondary" style={{ fontSize: '0.85rem', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                  {wallet.address}
-                </span>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(wallet.address);
-                    setAddressCopied(true);
-                    setTimeout(() => setAddressCopied(false), 2000);
-                  }}
-                  className="btn-secondary"
-                  title="Copy full wallet address"
-                  style={{
-                    padding: '0.3rem 0.7rem',
-                    fontSize: '0.78rem',
-                    background: addressCopied ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.1)',
-                    color: addressCopied ? '#10B981' : 'var(--text-secondary)',
-                    borderColor: addressCopied ? '#10B981' : 'var(--border-color)',
-                    whiteSpace: 'nowrap',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem'
-                  }}
-                >
-                  {addressCopied ? (
-                    <>
-                      <Check style={{ width: '14px', height: '14px', color: '#10B981' }} />
-                      <span>Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy style={{ width: '14px', height: '14px' }} />
-                      <span>Copy Address</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
+          <button
+            onClick={() => setAppSection('circles')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              padding: '0.85rem 1rem',
+              borderRadius: '12px',
+              border: 'none',
+              background: appSection === 'circles' ? '#0066FF' : 'transparent',
+              color: appSection === 'circles' ? '#FFFFFF' : '#475569',
+              fontWeight: 800,
+              fontSize: '0.95rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              boxShadow: appSection === 'circles' ? '0 4px 14px rgba(0, 102, 255, 0.28)' : 'none'
+            }}
+          >
+            <Users style={{ width: '18px', height: '18px' }} />
+            <span>Rotating Circles (Group)</span>
+          </button>
 
-            <Link href="/create" style={{ textDecoration: 'none' }}>
-              <button className="btn-primary" style={{ padding: '0.9rem 1.85rem', fontSize: '1.05rem' }}>
-                + Create New Circle
-              </button>
-            </Link>
-          </div>
-
-          {/* Stat Summary Grid */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '1.25rem',
-            marginTop: '1.75rem'
-          }}>
-            <div className="stat-card">
-              <span className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Managed Circle Volume</span>
-              <div className="stat-value text-gold">{totalPotValue.toLocaleString()} NIM</div>
-            </div>
-
-            <div className="stat-card">
-              <span className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Active Circles</span>
-              <div className="stat-value">{activeCount}</div>
-            </div>
-
-            <div className="stat-card">
-              <span className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Forming Circles</span>
-              <div className="stat-value" style={{ color: 'var(--status-pending)' }}>{formingCount}</div>
-            </div>
-
-            <div className="stat-card">
-              <span className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Completed Circles</span>
-              <div className="stat-value text-cyan">{completedCount}</div>
-            </div>
-          </div>
+          <button
+            onClick={() => setAppSection('targets')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              padding: '0.85rem 1rem',
+              borderRadius: '12px',
+              border: 'none',
+              background: appSection === 'targets' ? '#0066FF' : 'transparent',
+              color: appSection === 'targets' ? '#FFFFFF' : '#475569',
+              fontWeight: 800,
+              fontSize: '0.95rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              boxShadow: appSection === 'targets' ? '0 4px 14px rgba(0, 102, 255, 0.28)' : 'none'
+            }}
+          >
+            <Target style={{ width: '18px', height: '18px' }} />
+            <span>Target Savings (Personal)</span>
+          </button>
         </div>
+
+        {appSection === 'targets' ? (
+          <TargetSavingsView userId={user.id} userAddress={wallet.address} />
+        ) : (
+          <>
+            {/* User Hero & Stat Summary Overview */}
+            <div className="glass-card" style={{
+              background: 'linear-gradient(135deg, rgba(22, 28, 48, 0.9), rgba(12, 16, 28, 0.95))',
+              marginBottom: '2rem',
+              border: '1px solid var(--border-glow)',
+              padding: '2rem'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.2rem' }}>
+                    <span className="badge badge-active" style={{ fontSize: '0.7rem' }}>Connected</span>
+                    <span className="text-muted" style={{ fontSize: '0.85rem' }}>Nimiq Pay Protocol</span>
+                  </div>
+                  <h2 style={{ fontSize: '1.8rem', marginBottom: '0.25rem' }}>
+                    {user.display_name || 'Savings Member'}
+                  </h2>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginTop: '0.3rem' }}>
+                    <span className="text-secondary" style={{ fontSize: '0.85rem', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                      {wallet.address}
+                    </span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(wallet.address);
+                        setAddressCopied(true);
+                        setTimeout(() => setAddressCopied(false), 2000);
+                      }}
+                      className="btn-secondary"
+                      title="Copy full wallet address"
+                      style={{
+                        padding: '0.3rem 0.7rem',
+                        fontSize: '0.78rem',
+                        background: addressCopied ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.1)',
+                        color: addressCopied ? '#10B981' : 'var(--text-secondary)',
+                        borderColor: addressCopied ? '#10B981' : 'var(--border-color)',
+                        whiteSpace: 'nowrap',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem'
+                      }}
+                    >
+                      {addressCopied ? (
+                        <>
+                          <Check style={{ width: '14px', height: '14px', color: '#10B981' }} />
+                          <span>Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy style={{ width: '14px', height: '14px' }} />
+                          <span>Copy Address</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <Link href="/create" style={{ textDecoration: 'none' }}>
+                  <button className="btn-primary" style={{ padding: '0.9rem 1.85rem', fontSize: '1.05rem' }}>
+                    + Create New Circle
+                  </button>
+                </Link>
+              </div>
+
+              {/* Stat Summary Grid */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: '1.25rem',
+                marginTop: '1.75rem'
+              }}>
+                <div className="stat-card">
+                  <span className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Managed Circle Volume</span>
+                  <div className="stat-value text-gold">{totalPotValue.toLocaleString()} NIM</div>
+                </div>
+
+                <div className="stat-card">
+                  <span className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Active Circles</span>
+                  <div className="stat-value">{activeCount}</div>
+                </div>
+
+                <div className="stat-card">
+                  <span className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Forming Circles</span>
+                  <div className="stat-value" style={{ color: 'var(--status-pending)' }}>{formingCount}</div>
+                </div>
+
+                <div className="stat-card">
+                  <span className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Completed Circles</span>
+                  <div className="stat-value text-cyan">{completedCount}</div>
+                </div>
+              </div>
+            </div>
 
         {/* Circles Header & Filter Toolbar */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
@@ -267,6 +331,8 @@ export default function Home() {
               </Link>
             ))}
           </div>
+        )}
+        </>
         )}
       </main>
     </div>
