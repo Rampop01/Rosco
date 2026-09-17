@@ -209,7 +209,7 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
     const withdrawGross = withdrawAmount 
       ? Math.min(parseFloat(withdrawAmount) || 0, activeWithdrawGoal.current_amount) 
       : activeWithdrawGoal.current_amount;
-    const isEarlyExit = !activeWithdrawGoal.is_completed && activeWithdrawGoal.current_amount < activeWithdrawGoal.target_amount;
+    const isEarlyExit = !activeWithdrawGoal.is_completed && !activeWithdrawGoal.is_withdrawn && activeWithdrawGoal.current_amount < activeWithdrawGoal.target_amount;
     const fee10Percent = isEarlyExit ? Math.round(withdrawGross * 0.10 * 100) / 100 : 0;
     const netPayout = Math.max(0, Math.round((withdrawGross - fee10Percent) * 100) / 100);
 
@@ -274,14 +274,15 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
   };
 
   const filteredGoals = goals.filter(g => {
-    if (filter === 'ACTIVE') return !g.is_completed;
-    if (filter === 'COMPLETED') return g.is_completed;
+    if (filter === 'ACTIVE') return !g.is_completed && !g.is_withdrawn;
+    if (filter === 'COMPLETED') return g.is_completed || g.is_withdrawn;
     return true;
   });
 
   const totalSaved = goals.reduce((sum, g) => sum + g.current_amount, 0);
   const totalTarget = goals.reduce((sum, g) => sum + g.target_amount, 0);
-  const completedCount = goals.filter(g => g.is_completed).length;
+  const completedCount = goals.filter(g => g.is_completed || g.is_withdrawn).length;
+  const activeCount = goals.filter(g => !g.is_completed && !g.is_withdrawn).length;
 
   return (
     <div>
@@ -382,7 +383,7 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
             className={`filter-tab ${filter === 'ACTIVE' ? 'active' : ''}`}
             onClick={() => setFilter('ACTIVE')}
           >
-            In Progress ({goals.filter(g => !g.is_completed).length})
+            In Progress ({activeCount})
           </button>
           <button
             className={`filter-tab ${filter === 'COMPLETED' ? 'active' : ''}`}
@@ -416,7 +417,8 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
           gap: '1.25rem'
         }}>
           {filteredGoals.map(goal => {
-            const percent = Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100));
+            const isFinished = !!(goal.is_completed || goal.is_withdrawn);
+            const percent = isFinished ? 100 : Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100));
             const icon = CATEGORY_ICONS[goal.category] || '🎯';
             const isFlexible = goal.frequency === 'Flexible';
             const lastDeposit = goal.deposits && goal.deposits.length > 0 ? goal.deposits[0] : null;
@@ -429,7 +431,7 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
             // Only locked if scheduled (Daily, Weekly, Monthly), has a past deposit, and countdown has not reached 0
             const baseTime = lastDeposit ? new Date(lastDeposit.date).getTime() : 0;
             const nextTime = baseTime > 0 && intervalMs > 0 ? baseTime + intervalMs : 0;
-            const isDepositLocked = !goal.is_completed && !isFlexible && nextTime > 0 && currentTime < nextTime;
+            const isDepositLocked = !isFinished && !isFlexible && nextTime > 0 && currentTime < nextTime;
 
             return (
               <div
@@ -438,7 +440,7 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
                 style={{
                   padding: '1.5rem',
                   borderRadius: '16px',
-                  border: goal.is_completed ? '1px solid #10B981' : '1px solid var(--border-color)',
+                  border: isFinished ? '1px solid #10B981' : '1px solid var(--border-color)',
                   position: 'relative',
                   display: 'flex',
                   flexDirection: 'column',
@@ -452,9 +454,20 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                       <span style={{ fontSize: '1.75rem' }}>{icon}</span>
                       <div>
-                        <h4 style={{ fontSize: '1.15rem', color: '#0F172A', marginBottom: '0.15rem' }}>
-                          {goal.title}
-                        </h4>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <h4 style={{ fontSize: '1.15rem', color: '#0F172A', marginBottom: '0.15rem' }}>
+                            {goal.title}
+                          </h4>
+                          {goal.is_withdrawn ? (
+                            <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#047857', border: '1px solid #A7F3D0', fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>
+                              ✓ Paid Out
+                            </span>
+                          ) : goal.is_completed ? (
+                            <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#047857', border: '1px solid #A7F3D0', fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>
+                              🎉 Ready to Claim
+                            </span>
+                          ) : null}
+                        </div>
                         <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                           {goal.category} • {goal.frequency} Plan
                         </span>
@@ -479,11 +492,15 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
                   {/* Amount Progress */}
                   <div style={{ margin: '1rem 0' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.4rem' }}>
-                      <strong style={{ fontSize: '1.4rem', color: 'var(--primary-blue)', fontFamily: 'monospace' }}>
-                        {goal.current_amount.toLocaleString()} <span style={{ fontSize: '0.85rem' }}>NIM</span>
+                      <strong style={{ fontSize: '1.4rem', color: isFinished ? '#10B981' : 'var(--primary-blue)', fontFamily: 'monospace' }}>
+                        {goal.is_withdrawn 
+                          ? goal.target_amount.toLocaleString() 
+                          : goal.current_amount.toLocaleString()} <span style={{ fontSize: '0.85rem' }}>NIM</span>
                       </strong>
                       <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                        of {goal.target_amount.toLocaleString()} NIM
+                        {goal.is_withdrawn 
+                          ? 'Target Achieved (100%)' 
+                          : `of ${goal.target_amount.toLocaleString()} NIM`}
                       </span>
                     </div>
 
@@ -498,7 +515,7 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
                       <div style={{
                         width: `${percent}%`,
                         height: '100%',
-                        background: goal.is_completed
+                        background: isFinished
                           ? 'linear-gradient(90deg, #10B981, #059669)'
                           : 'linear-gradient(90deg, #0066FF, #38BDF8)',
                         borderRadius: '8px',
@@ -507,18 +524,22 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.4rem', fontSize: '0.78rem' }}>
-                      <span style={{ color: goal.is_completed ? '#10B981' : '#0066FF', fontWeight: 700 }}>
+                      <span style={{ color: isFinished ? '#10B981' : '#0066FF', fontWeight: 700 }}>
                         {percent}% Saved
                       </span>
-                      {goal.is_completed && (
+                      {goal.is_withdrawn ? (
+                        <span style={{ color: '#047857', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 700 }}>
+                          <CheckCircle2 style={{ width: '13px', height: '13px' }} /> 100% Disbursed to Wallet
+                        </span>
+                      ) : goal.is_completed ? (
                         <span style={{ color: '#10B981', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 700 }}>
                           <CheckCircle2 style={{ width: '13px', height: '13px' }} /> Target Reached!
                         </span>
-                      )}
+                      ) : null}
                     </div>
 
                     {/* Schedule / Lock Status Display */}
-                    {!goal.is_completed && (
+                    {!isFinished && (
                       isFlexible ? (
                         <div style={{
                           marginTop: '0.75rem',
@@ -577,63 +598,97 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
                 </div>
 
                 {/* Action Buttons */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.5rem' }}>
-                  <button
-                    onClick={() => !isDepositLocked && !goal.is_completed && setActiveDepositGoal(goal)}
-                    disabled={isDepositLocked || goal.is_completed}
-                    className={isDepositLocked || goal.is_completed ? 'btn-secondary' : 'btn-primary'}
-                    title={
-                      goal.is_completed
-                        ? 'Target goal already reached!'
-                        : isDepositLocked
-                        ? `Locked until next scheduled deposit (${goal.frequency} Plan)`
-                        : 'Deposit NIM into this goal'
-                    }
-                    style={{
-                      padding: '0.6rem',
-                      fontSize: '0.85rem',
+                {goal.is_withdrawn && goal.current_amount <= 0 ? (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <div style={{
+                      padding: '0.65rem 0.85rem',
+                      background: '#F0FDF4',
+                      border: '1px solid #BBF7D0',
+                      borderRadius: '12px',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.35rem',
-                      cursor: (isDepositLocked || goal.is_completed) ? 'not-allowed' : 'pointer',
-                      opacity: (isDepositLocked || goal.is_completed) ? 0.7 : 1,
-                      background: isDepositLocked ? '#F1F5F9' : undefined,
-                      color: isDepositLocked ? '#64748B' : undefined,
-                      border: isDepositLocked ? '1px solid #CBD5E1' : undefined
-                    }}
-                  >
-                    {isDepositLocked ? (
-                      <>
-                        <Lock style={{ width: '14px', height: '14px' }} />
-                        <span>Locked</span>
-                      </>
-                    ) : (
-                      <>
-                        <ArrowDownLeft style={{ width: '14px', height: '14px' }} />
-                        <span>Deposit</span>
-                      </>
-                    )}
-                  </button>
+                      justifyContent: 'space-between',
+                      fontSize: '0.82rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#15803D', fontWeight: 600 }}>
+                        <CheckCircle2 style={{ width: '15px', height: '15px', color: '#16A34A' }} />
+                        <span>Goal Completed & Paid Out</span>
+                      </div>
+                      {(goal.payout_tx_hash || goal.deposits?.find(d => d.tx_hash)?.tx_hash) && (
+                        <a
+                          href={`https://nimiq.watch/#${goal.payout_tx_hash || goal.deposits?.find(d => d.tx_hash)?.tx_hash}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ fontSize: '0.74rem', color: '#0066FF', textDecoration: 'none', fontWeight: 600 }}
+                        >
+                          View On-Chain ↗
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.5rem' }}>
+                    <button
+                      onClick={() => !isDepositLocked && !isFinished && setActiveDepositGoal(goal)}
+                      disabled={isDepositLocked || isFinished}
+                      className={isDepositLocked || isFinished ? 'btn-secondary' : 'btn-primary'}
+                      title={
+                        isFinished
+                          ? 'Target goal already reached!'
+                          : isDepositLocked
+                          ? `Locked until next scheduled deposit (${goal.frequency} Plan)`
+                          : 'Deposit NIM into this goal'
+                      }
+                      style={{
+                        padding: '0.6rem',
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.35rem',
+                        cursor: (isDepositLocked || isFinished) ? 'not-allowed' : 'pointer',
+                        opacity: (isDepositLocked || isFinished) ? 0.7 : 1,
+                        background: isDepositLocked ? '#F1F5F9' : undefined,
+                        color: isDepositLocked ? '#64748B' : undefined,
+                        border: isDepositLocked ? '1px solid #CBD5E1' : undefined
+                      }}
+                    >
+                      {isDepositLocked ? (
+                        <>
+                          <Lock style={{ width: '14px', height: '14px' }} />
+                          <span>Locked</span>
+                        </>
+                      ) : (
+                        <>
+                          <ArrowDownLeft style={{ width: '14px', height: '14px' }} />
+                          <span>Deposit</span>
+                        </>
+                      )}
+                    </button>
 
-                  <button
-                    onClick={() => setActiveWithdrawGoal(goal)}
-                    className="btn-secondary"
-                    disabled={goal.current_amount <= 0}
-                    style={{
-                      padding: '0.6rem',
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.35rem',
-                      opacity: goal.current_amount <= 0 ? 0.5 : 1
-                    }}
-                  >
-                    <ArrowUpRight style={{ width: '14px', height: '14px' }} />
-                    <span>Withdraw</span>
-                  </button>
-                </div>
+                    <button
+                      onClick={() => setActiveWithdrawGoal(goal)}
+                      className={goal.is_completed ? 'btn-primary' : 'btn-secondary'}
+                      disabled={goal.current_amount <= 0}
+                      style={{
+                        padding: '0.6rem',
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.35rem',
+                        background: goal.is_completed ? '#10B981' : undefined,
+                        color: goal.is_completed ? '#FFFFFF' : undefined,
+                        border: goal.is_completed ? 'none' : undefined,
+                        fontWeight: goal.is_completed ? 700 : 500,
+                        opacity: goal.current_amount <= 0 ? 0.5 : 1
+                      }}
+                    >
+                      <ArrowUpRight style={{ width: '14px', height: '14px' }} />
+                      <span>{goal.is_completed ? 'Claim Payout' : 'Withdraw'}</span>
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -881,7 +936,7 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
               const withdrawGross = withdrawAmount 
                 ? Math.min(parseFloat(withdrawAmount) || 0, activeWithdrawGoal.current_amount) 
                 : activeWithdrawGoal.current_amount;
-              const isEarlyExit = !activeWithdrawGoal.is_completed && activeWithdrawGoal.current_amount < activeWithdrawGoal.target_amount;
+              const isEarlyExit = !activeWithdrawGoal.is_completed && !activeWithdrawGoal.is_withdrawn && activeWithdrawGoal.current_amount < activeWithdrawGoal.target_amount;
               const fee10Percent = isEarlyExit ? Math.round(withdrawGross * 0.10 * 100) / 100 : 0;
               const netPayout = Math.max(0, Math.round((withdrawGross - fee10Percent) * 100) / 100);
 

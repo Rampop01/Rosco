@@ -25,6 +25,11 @@ export interface PersonalGoal {
   target_date?: string;
   created_at: string;
   is_completed: boolean;
+  status?: 'ACTIVE' | 'COMPLETED';
+  is_withdrawn?: boolean;
+  withdrawn_amount?: number;
+  withdrawn_at?: string;
+  payout_tx_hash?: string;
   deposits: PersonalGoalDeposit[];
 }
 
@@ -35,7 +40,46 @@ export function getPersonalGoals(userId?: string): PersonalGoal[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    const all: PersonalGoal[] = JSON.parse(raw);
+    let all: PersonalGoal[] = JSON.parse(raw);
+    let changed = false;
+
+    // Healing migration:
+    // If a goal previously had a full target payout/withdrawal or total deposits reached target,
+    // ensure is_completed stays true permanently and is_withdrawn is preserved.
+    all = all.map(g => {
+      const totalDeposits = (g.deposits || []).reduce((sum, d) => d.amount > 0 ? sum + d.amount : sum, 0);
+      const hasPayout = (g.deposits || []).some(d => 
+        d.amount < 0 && (
+          (d.note && (d.note.includes('Target achieved') || d.note.includes('100% payout'))) ||
+          d.tx_hash !== undefined
+        )
+      );
+
+      if (g.is_withdrawn || hasPayout || (totalDeposits >= g.target_amount && (g.deposits || []).some(d => d.amount < 0))) {
+        if (!g.is_completed || !g.is_withdrawn) {
+          changed = true;
+          return {
+            ...g,
+            is_completed: true,
+            is_withdrawn: true,
+            status: 'COMPLETED' as const,
+          };
+        }
+      } else if (g.current_amount >= g.target_amount && !g.is_completed) {
+        changed = true;
+        return {
+          ...g,
+          is_completed: true,
+          status: 'COMPLETED' as const,
+        };
+      }
+      return g;
+    });
+
+    if (changed) {
+      savePersonalGoals(all);
+    }
+
     if (userId) {
       return all.filter(g => g.user_id.toLowerCase() === userId.toLowerCase());
     }
@@ -78,6 +122,7 @@ export function createPersonalGoal(data: {
     });
   }
 
+  const isCompleted = initial >= data.target_amount;
   const newGoal: PersonalGoal = {
     id: `goal_${Date.now()}`,
     user_id: data.user_id,
@@ -88,7 +133,8 @@ export function createPersonalGoal(data: {
     frequency: data.frequency || 'Weekly',
     target_date: data.target_date,
     created_at: new Date().toISOString(),
-    is_completed: initial >= data.target_amount,
+    is_completed: isCompleted,
+    status: isCompleted ? 'COMPLETED' : 'ACTIVE',
     deposits,
   };
 
@@ -122,6 +168,7 @@ export function depositToPersonalGoal(
   goal.current_amount = Math.round((goal.current_amount + amount) * 100) / 100;
   if (goal.current_amount >= goal.target_amount) {
     goal.is_completed = true;
+    goal.status = 'COMPLETED';
   }
 
   savePersonalGoals(goals);
@@ -150,14 +197,31 @@ export function withdrawFromPersonalGoal(
   }
 
   const withdrawAmount = amount !== undefined ? Math.min(amount, goal.current_amount) : goal.current_amount;
-  const isEarlyExit = !goal.is_completed && goal.current_amount < goal.target_amount;
+  // A goal is completed if it was marked completed or if current_amount reached target
+  const wasAlreadyCompleted = goal.is_completed || goal.is_withdrawn || (goal.current_amount >= goal.target_amount);
+  const isEarlyExit = !wasAlreadyCompleted;
   const feePercent = isEarlyExit ? 10 : 0;
   const feeAmount = isEarlyExit ? Math.round(withdrawAmount * 0.10 * 100) / 100 : 0;
   const netPayoutAmount = Math.max(0, Math.round((withdrawAmount - feeAmount) * 100) / 100);
 
   goal.current_amount = Math.max(0, Math.round((goal.current_amount - withdrawAmount) * 100) / 100);
-  if (goal.current_amount < goal.target_amount) {
-    goal.is_completed = false;
+  
+  if (wasAlreadyCompleted) {
+    // Goal reached target! Maintain completed status permanently!
+    goal.is_completed = true;
+    goal.status = 'COMPLETED';
+    goal.is_withdrawn = true;
+    goal.withdrawn_amount = (goal.withdrawn_amount || 0) + withdrawAmount;
+    goal.withdrawn_at = new Date().toISOString();
+    if (txHash) {
+      goal.payout_tx_hash = txHash;
+    }
+  } else {
+    // Early exit before reaching goal
+    if (goal.current_amount < goal.target_amount) {
+      goal.is_completed = false;
+      goal.status = 'ACTIVE';
+    }
   }
 
   goal.deposits.unshift({
@@ -167,7 +231,7 @@ export function withdrawFromPersonalGoal(
     tx_hash: txHash,
     note: isEarlyExit 
       ? `Early withdrawal (-${feePercent}% fee: ${feeAmount} NIM, net: ${netPayoutAmount} NIM)`
-      : 'Target achieved withdrawal (100% payout)',
+      : `Target achieved withdrawal (100% payout: ${netPayoutAmount} NIM)`,
   });
 
   savePersonalGoals(goals);
