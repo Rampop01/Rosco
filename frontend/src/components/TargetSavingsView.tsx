@@ -494,12 +494,12 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.4rem' }}>
                       <strong style={{ fontSize: '1.4rem', color: isFinished ? '#10B981' : 'var(--primary-blue)', fontFamily: 'monospace' }}>
                         {goal.is_withdrawn 
-                          ? goal.target_amount.toLocaleString() 
+                          ? (goal.withdrawn_amount || goal.target_amount).toLocaleString() 
                           : goal.current_amount.toLocaleString()} <span style={{ fontSize: '0.85rem' }}>NIM</span>
                       </strong>
                       <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                         {goal.is_withdrawn 
-                          ? 'Target Achieved (100%)' 
+                          ? (goal.is_completed ? 'Target Achieved (100% Paid Out)' : 'Early Exit (Paid Out)') 
                           : `of ${goal.target_amount.toLocaleString()} NIM`}
                       </span>
                     </div>
@@ -529,7 +529,7 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
                       </span>
                       {goal.is_withdrawn ? (
                         <span style={{ color: '#047857', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 700 }}>
-                          <CheckCircle2 style={{ width: '13px', height: '13px' }} /> 100% Disbursed to Wallet
+                          <CheckCircle2 style={{ width: '13px', height: '13px' }} /> {goal.is_completed ? '100% Disbursed to Wallet' : 'Funds Disbursed to Wallet'}
                         </span>
                       ) : goal.is_completed ? (
                         <span style={{ color: '#10B981', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 700 }}>

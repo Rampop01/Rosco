@@ -44,19 +44,14 @@ export function getPersonalGoals(userId?: string): PersonalGoal[] {
     let changed = false;
 
     // Healing migration:
-    // If a goal previously had a full target payout/withdrawal or total deposits reached target,
-    // ensure is_completed stays true permanently and is_withdrawn is preserved.
+    // If a goal had a withdrawal and current_amount is 0, or total deposits reached target with payout,
+    // ensure is_completed and is_withdrawn stay true permanently.
     all = all.map(g => {
+      const hasWithdrawal = (g.deposits || []).some(d => d.amount < 0);
       const totalDeposits = (g.deposits || []).reduce((sum, d) => d.amount > 0 ? sum + d.amount : sum, 0);
-      const hasPayout = (g.deposits || []).some(d => 
-        d.amount < 0 && (
-          (d.note && (d.note.includes('Target achieved') || d.note.includes('100% payout'))) ||
-          d.tx_hash !== undefined
-        )
-      );
 
-      if (g.is_withdrawn || hasPayout || (totalDeposits >= g.target_amount && (g.deposits || []).some(d => d.amount < 0))) {
-        if (!g.is_completed || !g.is_withdrawn) {
+      if (g.is_withdrawn || (hasWithdrawal && g.current_amount <= 0) || (totalDeposits >= g.target_amount && hasWithdrawal)) {
+        if (!g.is_completed || !g.is_withdrawn || g.status !== 'COMPLETED') {
           changed = true;
           return {
             ...g,
@@ -217,8 +212,19 @@ export function withdrawFromPersonalGoal(
       goal.payout_tx_hash = txHash;
     }
   } else {
-    // Early exit before reaching goal
-    if (goal.current_amount < goal.target_amount) {
+    // Early exit before reaching target
+    if (goal.current_amount <= 0) {
+      // Entire balance withdrawn early: mark as withdrawn so it moves to Completed/Closed section
+      goal.is_withdrawn = true;
+      goal.is_completed = false;
+      goal.status = 'COMPLETED';
+      goal.withdrawn_amount = (goal.withdrawn_amount || 0) + withdrawAmount;
+      goal.withdrawn_at = new Date().toISOString();
+      if (txHash) {
+        goal.payout_tx_hash = txHash;
+      }
+    } else {
+      // Partial early withdrawal: user still has savings in the goal
       goal.is_completed = false;
       goal.status = 'ACTIVE';
     }

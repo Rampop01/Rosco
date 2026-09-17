@@ -10,13 +10,13 @@ interface CircleCardProps {
 }
 
 export const CircleCard: React.FC<CircleCardProps> = ({ circle, onClick }) => {
-  const approvedMemberships = circle.memberships?.filter(m => m.status === 'APPROVED') || [];
+  const approvedMemberships = circle.memberships?.filter(m => (m.status || '').toUpperCase() === 'APPROVED') || [];
   const memberCount = approvedMemberships.length || 1;
   const totalPot = circle.contribution_amount * (circle.max_members || memberCount);
 
   // Active round calculation
-  const currentRound = circle.rounds?.find(r => r.status === 'open') || circle.rounds?.[0];
-  const confirmedContribs = currentRound?.contributions?.filter(c => c.status === 'CONFIRMED').length || 0;
+  const currentRound = circle.rounds?.find(r => (r.status || '').toLowerCase() === 'open') || circle.rounds?.[0];
+  const confirmedContribs = currentRound?.contributions?.filter(c => (c.status || '').toUpperCase() === 'CONFIRMED').length || 0;
   const requiredContribs = (circle.max_members || memberCount) - 1;
   const progressPercent = requiredContribs > 0 ? Math.round((confirmedContribs / requiredContribs) * 100) : 0;
 

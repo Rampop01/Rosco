@@ -381,8 +381,8 @@ export default function CircleDetailPage() {
     );
   }
 
-  const approvedMembers = circle.memberships?.filter(m => m.status === 'APPROVED') || [];
-  const pendingCount = joinRequests.filter(r => r.status === 'PENDING').length;
+  const approvedMembers = circle.memberships?.filter(m => (m.status || '').toUpperCase() === 'APPROVED') || [];
+  const pendingCount = joinRequests.filter(r => (r.status || '').toUpperCase() === 'PENDING').length;
 
   return (
     <div style={{ paddingBottom: '2rem' }}>
@@ -488,7 +488,7 @@ export default function CircleDetailPage() {
               </div>
             )}
 
-            {myMembership?.status === 'REJECTED' && !isOrganizer && (
+            {(myMembership?.status || '').toUpperCase() === 'REJECTED' && !isOrganizer && (
               <div className="glass-card" style={{ textAlign: 'center', marginBottom: '1.25rem', borderColor: '#EF4444' }}>
                 <h4 style={{ color: '#EF4444' }}>❌ Request Declined</h4>
                 <p className="text-muted" style={{ fontSize: '0.85rem', marginTop: '0.4rem' }}>
