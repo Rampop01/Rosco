@@ -2,9 +2,8 @@ import fs from 'fs';
 import path from 'path';
 
 /**
- * Shared File-Backed & In-Memory Store for Next.js API routes on Vercel
- * Provides global circle persistence so users on different devices
- * can create, invite, join, and view circles seamlessly.
+ * Shared File-Backed Store for Next.js API routes
+ * Provides persistent circle storage across processes, worker threads, and reloads.
  */
 
 export interface ServerCircle {
@@ -25,20 +24,29 @@ export interface ServerCircle {
   rounds?: any[];
 }
 
-const STORE_PATH = path.join(process.env.TEMP || '/tmp', 'rosco_circles_v1.json');
+const PRIMARY_DATA_DIR = path.join(process.cwd(), '.rosco_data');
+const STORE_PATH = (() => {
+  try {
+    if (!fs.existsSync(PRIMARY_DATA_DIR)) {
+      fs.mkdirSync(PRIMARY_DATA_DIR, { recursive: true });
+    }
+    return path.join(PRIMARY_DATA_DIR, 'circles.json');
+  } catch {
+    return path.join(process.env.TEMP || '/tmp', 'rosco_circles_v1.json');
+  }
+})();
 
-// Global server variable across invocations in the same process
 const globalForStore = globalThis as unknown as {
   _serverCirclesStore?: Map<string, ServerCircle>;
+  _serverStoreLastMtime?: number;
 };
 
-function loadStore(): Map<string, ServerCircle> {
-  if (globalForStore._serverCirclesStore && globalForStore._serverCirclesStore.size > 0) {
-    return globalForStore._serverCirclesStore;
-  }
+function readDiskStore(): Map<string, ServerCircle> {
   const map = new Map<string, ServerCircle>();
   try {
     if (fs.existsSync(STORE_PATH)) {
+      const stat = fs.statSync(STORE_PATH);
+      globalForStore._serverStoreLastMtime = stat.mtimeMs;
       const raw = fs.readFileSync(STORE_PATH, 'utf-8');
       const list = JSON.parse(raw);
       if (Array.isArray(list)) {
@@ -50,20 +58,44 @@ function loadStore(): Map<string, ServerCircle> {
   } catch (err) {
     console.warn('[Rosco ServerStore] Could not read disk store:', err);
   }
-  globalForStore._serverCirclesStore = map;
   return map;
+}
+
+function loadStore(): Map<string, ServerCircle> {
+  // Always check if disk file exists and check if modified
+  let shouldReload = !globalForStore._serverCirclesStore;
+  try {
+    if (fs.existsSync(STORE_PATH)) {
+      const stat = fs.statSync(STORE_PATH);
+      if (stat.mtimeMs !== globalForStore._serverStoreLastMtime) {
+        shouldReload = true;
+      }
+    }
+  } catch {}
+
+  if (shouldReload) {
+    globalForStore._serverCirclesStore = readDiskStore();
+  }
+
+  return globalForStore._serverCirclesStore || new Map();
 }
 
 function persistStore(map: Map<string, ServerCircle>) {
   try {
+    const dir = path.dirname(STORE_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
     const list = Array.from(map.values());
     fs.writeFileSync(STORE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+    try {
+      const stat = fs.statSync(STORE_PATH);
+      globalForStore._serverStoreLastMtime = stat.mtimeMs;
+    } catch {}
   } catch (err) {
     console.warn('[Rosco ServerStore] Could not persist disk store:', err);
   }
 }
-
-export const circlesMap = loadStore();
 
 export function getAllCircles(): ServerCircle[] {
   const map = loadStore();
@@ -74,19 +106,10 @@ export function getCircleById(id: string): ServerCircle | undefined {
   const map = loadStore();
   let found = map.get(id);
   if (!found) {
-    // try reload from disk in case another process wrote it
-    try {
-      if (fs.existsSync(STORE_PATH)) {
-        const raw = fs.readFileSync(STORE_PATH, 'utf-8');
-        const list = JSON.parse(raw);
-        if (Array.isArray(list)) {
-          for (const item of list) {
-            if (item && item.id) map.set(item.id, item);
-          }
-        }
-        found = map.get(id);
-      }
-    } catch {}
+    // Force reload from disk in case another process just wrote it
+    const refreshed = readDiskStore();
+    globalForStore._serverCirclesStore = refreshed;
+    found = refreshed.get(id);
   }
   return found;
 }
@@ -114,6 +137,7 @@ export function clearAllCircles(): void {
     if (fs.existsSync(STORE_PATH)) {
       fs.unlinkSync(STORE_PATH);
     }
+    globalForStore._serverStoreLastMtime = 0;
   } catch (err) {
     console.warn('[Rosco ServerStore] Could not delete disk store:', err);
   }

@@ -64,6 +64,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       const primary = accounts[0];
       setWallet(primary);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('rosco_wallet_address', primary.address);
+        if (primary.label) localStorage.setItem('rosco_wallet_label', primary.label);
+      }
       const fallbackUser: User = {
         id: primary.address,
         nimiq_address: primary.address,

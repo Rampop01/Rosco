@@ -28,7 +28,7 @@ export const ContributeModal: React.FC<ContributeModalProps> = ({
       setErrorMsg(null);
 
       // 1. Fetch payment intent from backend (gets recipient address, amount, message)
-      const fallbackRecipient = round.recipient?.nimiq_address || circle.organizer_id || (circle.organizer as any)?.nimiq_address || '';
+      const fallbackRecipient = round.recipient?.nimiq_address || round.recipient?.id || round.recipient_id || circle.organizer_id || (circle.organizer as any)?.nimiq_address || '';
       const intent = await getContributionIntent(round.id, fallbackRecipient, circle.contribution_amount);
 
       // 2. Trigger Nimiq Pay SDK requestPayment
@@ -46,7 +46,8 @@ export const ContributeModal: React.FC<ContributeModalProps> = ({
       setStep('verifying');
 
       // 3. Confirm contribution with backend
-      await confirmContribution(round.id, result.txHash);
+      const myWallet = typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') || '' : '';
+      await confirmContribution(round.id, result.txHash, myWallet);
 
       // 4. Trigger in-app notification
       addNotification({

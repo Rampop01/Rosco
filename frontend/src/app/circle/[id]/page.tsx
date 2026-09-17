@@ -138,9 +138,15 @@ export default function CircleDetailPage() {
 
       if (data.status === 'FORMING') {
         let requests = await getJoinRequests(circleId);
+        const approvedUserAddrs = new Set(
+          (data.memberships || [])
+            .filter((m: any) => (m.status || '').toUpperCase() === 'APPROVED')
+            .map((m: any) => clean(m.user_id || m.user?.nimiq_address))
+        );
+
         if (data.memberships) {
           const directPending = data.memberships
-            .filter((m: any) => m.status === 'PENDING' && !requests.some(r => r.id === m.id || clean(r.user_id) === clean(m.user_id)))
+            .filter((m: any) => (m.status || '').toUpperCase() === 'PENDING' && !approvedUserAddrs.has(clean(m.user_id || m.user?.nimiq_address)) && !requests.some(r => r.id === m.id || clean(r.user_id) === clean(m.user_id)))
             .map((m: any) => ({
               id: m.id,
               user_id: m.user_id,
@@ -156,8 +162,11 @@ export default function CircleDetailPage() {
             requests = [...requests, ...directPending];
           }
         }
+
+        // Strictly exclude any members who have already been approved
+        requests = requests.filter(r => !approvedUserAddrs.has(clean(r.user_id || r.user?.nimiq_address)));
         setJoinRequests(requests);
-        const pendingCount = requests.filter(r => r.status === 'PENDING').length;
+        const pendingCount = requests.filter(r => (r.status || '').toUpperCase() === 'PENDING').length;
         const reqKey = `rosco_notified_req_${circleId}_${pendingCount}`;
         if (isOrgCheck && pendingCount > 0 && typeof window !== 'undefined' && !sessionStorage.getItem(reqKey)) {
           addNotification({
@@ -174,7 +183,7 @@ export default function CircleDetailPage() {
       // Check if current user is a member whose request was approved or rejected
       if (!isOrgCheck && activeWallet) {
         const userMem = data.memberships?.find((m: any) => clean(m.user_id || m.user?.nimiq_address) === activeWallet);
-        if (userMem?.status === 'APPROVED') {
+        if ((userMem?.status || '').toUpperCase() === 'APPROVED') {
           const approvedNotifKey = `rosco_notified_approved_${circleId}`;
           if (typeof window !== 'undefined' && !localStorage.getItem(approvedNotifKey)) {
             addNotification({
@@ -186,7 +195,7 @@ export default function CircleDetailPage() {
             });
             localStorage.setItem(approvedNotifKey, 'true');
           }
-        } else if (userMem?.status === 'REJECTED') {
+        } else if ((userMem?.status || '').toUpperCase() === 'REJECTED') {
           const rejectedNotifKey = `rosco_notified_rejected_${circleId}`;
           if (typeof window !== 'undefined' && !localStorage.getItem(rejectedNotifKey)) {
             addNotification({
@@ -229,16 +238,18 @@ export default function CircleDetailPage() {
   });
 
   // The creator is ALWAYS automatically an approved member of their own circle!
-  const isMember = isOrganizer || myMembership?.status === 'APPROVED';
-  const hasRequested = !isOrganizer && myMembership?.status === 'PENDING';
+  const isMember = isOrganizer || (myMembership?.status || '').toUpperCase() === 'APPROVED';
+  const hasRequested = !isOrganizer && (myMembership?.status || '').toUpperCase() === 'PENDING';
 
   const handleJoin = async () => {
     try {
       setActionLoading(true);
-      if (!user) {
+      if (!user && !wallet) {
         await connectWallet();
       }
-      await joinCircle(circleId);
+      const myAddr = wallet?.address || user?.nimiq_address || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') || '' : '');
+      const myLabel = user?.display_name || wallet?.label || 'Member';
+      await joinCircle(circleId, myAddr, myLabel);
       addNotification({
         title: 'Joined Circle 👥',
         message: `You requested or joined ${circle?.name || 'the circle'}!`,
@@ -817,22 +828,29 @@ export default function CircleDetailPage() {
                   {currentRound.recipient?.nimiq_address}
                 </span>
 
-                {user && (currentRound.recipient_id === user.id || currentRound.recipient?.nimiq_address === user.nimiq_address) && (
-                  <div style={{
-                    marginTop: '0.85rem',
-                    background: '#ECFDF5',
-                    border: '1px solid #10B981',
-                    padding: '0.75rem 1rem',
-                    borderRadius: '10px',
-                    fontSize: '0.88rem',
-                    color: '#065F46',
-                    fontWeight: 700,
-                    textAlign: 'center',
-                    lineHeight: 1.5
-                  }}>
-                    🎉 You are the recipient for this round! You will receive the gathered pot directly to your wallet.
-                  </div>
-                )}
+                {(() => {
+                  const myAddr = clean(wallet?.address || user?.nimiq_address || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null));
+                  const recAddr = clean(currentRound.recipient_id || currentRound.recipient?.nimiq_address || currentRound.recipient?.id);
+                  if (myAddr && recAddr && myAddr === recAddr) {
+                    return (
+                      <div style={{
+                        marginTop: '0.85rem',
+                        background: '#ECFDF5',
+                        border: '1px solid #10B981',
+                        padding: '0.75rem 1rem',
+                        borderRadius: '10px',
+                        fontSize: '0.88rem',
+                        color: '#065F46',
+                        fontWeight: 700,
+                        textAlign: 'center',
+                        lineHeight: 1.5
+                      }}>
+                        🎉 You are the recipient for this round! You will receive the gathered pot directly to your wallet.
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
 
               {/* Action Button & Contribution Lock with Countdown */}
@@ -842,14 +860,14 @@ export default function CircleDetailPage() {
                   user?.nimiq_address ||
                   (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null)
                 );
-                const recWallet = clean(currentRound.recipient_id || currentRound.recipient?.nimiq_address);
+                const recWallet = clean(currentRound.recipient_id || currentRound.recipient?.nimiq_address || currentRound.recipient?.id);
                 const isRecipient = !!(myWallet && recWallet && myWallet === recWallet);
 
                 const myContrib = currentRound.contributions?.find(c => {
-                  const cAddr = clean(c.contributor_id || c.contributor?.nimiq_address);
+                  const cAddr = clean(c.contributor_id || c.contributor?.nimiq_address || c.contributor?.id);
                   return myWallet && cAddr && myWallet === cAddr;
                 });
-                const hasPaid = myContrib?.status === 'CONFIRMED';
+                const hasPaid = (myContrib?.status || '').toUpperCase() === 'CONFIRMED';
                 const roundDueDate = currentRound.due_date || new Date(Date.now() + 7 * 86400000).toISOString();
 
                 // Not connected yet
@@ -1006,7 +1024,7 @@ export default function CircleDetailPage() {
               marginBottom: '1.25rem'
             }}>
               <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', marginBottom: '1rem' }}>
-                Contributions Status ({currentRound.contributions?.filter(c => c.status === 'CONFIRMED').length || 0} / {currentRound.contributions?.length || Math.max(1, approvedMembers.length - 1)} Paid)
+                Contributions Status ({currentRound.contributions?.filter(c => (c.status || '').toUpperCase() === 'CONFIRMED').length || 0} / {currentRound.contributions?.length || Math.max(1, approvedMembers.length - 1)} Paid)
               </h4>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -1029,7 +1047,7 @@ export default function CircleDetailPage() {
                       </span>
                     </div>
 
-                    {contrib.status === 'CONFIRMED' ? (
+                    {(contrib.status || '').toUpperCase() === 'CONFIRMED' ? (
                       <span style={{
                         background: '#ECFDF5',
                         color: '#059669',

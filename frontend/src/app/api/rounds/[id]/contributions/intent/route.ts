@@ -11,8 +11,9 @@ export async function POST(
   for (const c of circles) {
     const r = c.rounds?.find((rnd: any) => rnd.id === roundId);
     if (r) {
+      const recipientAddress = r.recipient?.nimiq_address || r.recipient?.id || r.recipient_id || c.organizer_id;
       return NextResponse.json({
-        recipient_address: r.recipient?.nimiq_address || c.organizer_id,
+        recipient_address: recipientAddress,
         amount: c.contribution_amount,
         round_id: r.id,
         contribution_id: `contrib_${Date.now()}`,

@@ -84,6 +84,8 @@ export interface PaymentIntent {
   message: string;
 }
 
+export type ContributionIntent = PaymentIntent;
+
 // ─── Token Management ───────────────────────────────────────────────────────
 
 let authToken: string | null = null;
@@ -362,9 +364,9 @@ export async function getCircle(id: string): Promise<Circle> {
   }
 }
 
-export async function joinCircle(circleId: string): Promise<{ id: string; status: string; message: string }> {
-  const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') || '' : '';
-  const walletLabel = typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_label') || 'Member' : 'Member';
+export async function joinCircle(circleId: string, customWalletAddress?: string, customWalletLabel?: string): Promise<{ id: string; status: string; message: string }> {
+  const walletAddress = customWalletAddress || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') || '' : '');
+  const walletLabel = customWalletLabel || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_label') || 'Member' : 'Member');
   const localCircles = getLocalCircles();
   const localCircle = localCircles.find(c => c.id === circleId);
 
@@ -383,22 +385,26 @@ export async function joinCircle(circleId: string): Promise<{ id: string; status
 
     if (localCircle) {
       if (!localCircle.memberships) localCircle.memberships = [];
-      const clean = (a: string) => a.replace(/\s+/g, '').toUpperCase();
-      const existing = localCircle.memberships.find(m => clean(m.user_id) === clean(walletAddress));
-      if (!existing) {
+      const clean = (a?: string | null) => (a ? a.replace(/\s+/g, '').toUpperCase() : '');
+      const existing = localCircle.memberships.find(m => clean(m.user_id || m.user?.nimiq_address) === clean(walletAddress));
+      const targetStatus = res.membership?.status || 'PENDING';
+      if (existing) {
+        existing.status = targetStatus;
+        if (res.membership?.joined_order) existing.joined_order = res.membership.joined_order;
+      } else {
         localCircle.memberships.push({
           id: res.membership?.id || `m_${Date.now()}`,
           user_id: walletAddress,
-          status: 'PENDING',
-          joined_order: null,
+          status: targetStatus,
+          joined_order: res.membership?.joined_order || null,
           user: {
             id: walletAddress,
             nimiq_address: walletAddress,
             display_name: walletLabel,
           }
         });
-        saveLocalCircle(localCircle);
       }
+      saveLocalCircle(localCircle);
     }
 
     return res;
@@ -406,8 +412,8 @@ export async function joinCircle(circleId: string): Promise<{ id: string; status
     console.warn('[Rosco] Failed to submit join-request to server, saving locally:', err);
     if (localCircle) {
       if (!localCircle.memberships) localCircle.memberships = [];
-      const clean = (a: string) => a.replace(/\s+/g, '').toUpperCase();
-      const existing = localCircle.memberships.find(m => clean(m.user_id) === clean(walletAddress));
+      const clean = (a?: string | null) => (a ? a.replace(/\s+/g, '').toUpperCase() : '');
+      const existing = localCircle.memberships.find(m => clean(m.user_id || m.user?.nimiq_address) === clean(walletAddress));
       if (!existing) {
         localCircle.memberships.push({
           id: `m_${Date.now()}`,
@@ -440,7 +446,7 @@ export async function getJoinRequests(circleId: string): Promise<JoinRequest[]> 
   const found = localCircles.find(c => c.id === circleId);
   if (found && found.memberships) {
     return found.memberships
-      .filter(m => m.status === 'PENDING')
+      .filter(m => (m.status || '').toUpperCase() === 'PENDING')
       .map(m => ({
         id: m.id,
         user_id: m.user_id,
@@ -457,13 +463,28 @@ export async function getJoinRequests(circleId: string): Promise<JoinRequest[]> 
 }
 
 export async function approveJoinRequest(circleId: string, membershipId: string): Promise<any> {
+  const clean = (a?: string | null) => (a ? a.replace(/\s+/g, '').toUpperCase() : '');
+  const target = clean(membershipId);
+
   try {
-    return await apiFetch(`/circles/${circleId}/join-requests/${membershipId}/approve`, { method: 'POST' });
+    const res = await apiFetch<any>(`/circles/${circleId}/join-requests/${membershipId}/approve`, { method: 'POST' });
+    if (res?.circle) {
+      saveLocalCircle(res.circle);
+    } else {
+      const localCircles = getLocalCircles();
+      const found = localCircles.find(c => c.id === circleId);
+      if (found && found.memberships) {
+        const m = found.memberships.find(mem => mem.id === membershipId || clean(mem.user_id) === target || clean(mem.user?.nimiq_address) === target);
+        if (m) m.status = 'APPROVED';
+        saveLocalCircle(found);
+      }
+    }
+    return res;
   } catch (err) {
     const localCircles = getLocalCircles();
     const found = localCircles.find(c => c.id === circleId);
     if (found && found.memberships) {
-      const m = found.memberships.find(mem => mem.id === membershipId);
+      const m = found.memberships.find(mem => mem.id === membershipId || clean(mem.user_id) === target || clean(mem.user?.nimiq_address) === target);
       if (m) m.status = 'APPROVED';
       saveLocalCircle(found);
       return { success: true };
@@ -473,13 +494,23 @@ export async function approveJoinRequest(circleId: string, membershipId: string)
 }
 
 export async function rejectJoinRequest(circleId: string, membershipId: string): Promise<any> {
+  const clean = (a?: string | null) => (a ? a.replace(/\s+/g, '').toUpperCase() : '');
+  const target = clean(membershipId);
+
   try {
-    return await apiFetch(`/circles/${circleId}/join-requests/${membershipId}/reject`, { method: 'POST' });
+    const res = await apiFetch<any>(`/circles/${circleId}/join-requests/${membershipId}/reject`, { method: 'POST' });
+    const localCircles = getLocalCircles();
+    const found = localCircles.find(c => c.id === circleId);
+    if (found && found.memberships) {
+      found.memberships = found.memberships.filter(mem => mem.id !== membershipId && clean(mem.user_id) !== target && clean(mem.user?.nimiq_address) !== target);
+      saveLocalCircle(found);
+    }
+    return res;
   } catch (err) {
     const localCircles = getLocalCircles();
     const found = localCircles.find(c => c.id === circleId);
     if (found && found.memberships) {
-      found.memberships = found.memberships.filter(mem => mem.id !== membershipId);
+      found.memberships = found.memberships.filter(mem => mem.id !== membershipId && clean(mem.user_id) !== target && clean(mem.user?.nimiq_address) !== target);
       saveLocalCircle(found);
       return { success: true };
     }
@@ -488,35 +519,66 @@ export async function rejectJoinRequest(circleId: string, membershipId: string):
 }
 
 export async function startCircle(circleId: string): Promise<Circle> {
+  const clean = (a?: string | null) => (a ? a.replace(/\s+/g, '').toUpperCase() : '');
+
   try {
-    return await apiFetch<Circle>(`/circles/${circleId}/start`, { method: 'POST' });
+    const res = await apiFetch<Circle>(`/circles/${circleId}/start`, { method: 'POST' });
+    saveLocalCircle(res);
+    return res;
   } catch (err) {
     const localCircles = getLocalCircles();
     const found = localCircles.find(c => c.id === circleId);
     if (found) {
       found.status = 'ACTIVE';
-      const approved = found.memberships?.filter(m => m.status === 'APPROVED') || [];
-      const recipient = approved[0]?.user || { id: found.organizer_id, nimiq_address: found.organizer_id, display_name: 'Member 1' };
-      found.rounds = [
-        {
-          id: `round_${Date.now()}_1`,
-          round_number: 1,
+      const approved = [...(found.memberships?.filter(m => (m.status || '').toUpperCase() === 'APPROVED') || [])];
+
+      // Fisher-Yates shuffle for fair, random recipient turn order
+      for (let i = approved.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [approved[i], approved[j]] = [approved[j], approved[i]];
+      }
+
+      found.payout_order = approved.map(m => m.user_id);
+
+      // Create all rounds
+      found.rounds = approved.map((recMember, idx) => {
+        const recipientAddr = recMember.user?.nimiq_address || recMember.user?.id || recMember.user_id;
+        const recipient = {
+          id: recipientAddr,
+          nimiq_address: recipientAddr,
+          display_name: recMember.user?.display_name || `Member ${idx + 1}`,
+        };
+        const cleanRecAddr = clean(recipientAddr);
+
+        return {
+          id: `round_${Date.now()}_${idx + 1}`,
+          round_number: idx + 1,
           recipient_id: recipient.id,
-          due_date: new Date(Date.now() + 7 * 86400000).toISOString(),
-          status: 'open',
+          due_date: new Date(Date.now() + (idx + 1) * 7 * 86400000).toISOString(),
+          status: idx === 0 ? 'open' : 'upcoming',
           completed_at: null,
           recipient,
-          contributions: approved.filter(m => m.user_id !== recipient.id).map(m => ({
-            id: `c_${Date.now()}_${m.user_id}`,
-            contributor_id: m.user_id,
-            expected_amount: found.contribution_amount,
-            tx_hash: null,
-            status: 'pending',
-            confirmed_at: null,
-            contributor: m.user,
-          }))
-        }
-      ];
+          contributions: approved
+            .filter(m => clean(m.user_id || m.user?.nimiq_address) !== cleanRecAddr)
+            .map(m => {
+              const contribAddr = m.user?.nimiq_address || m.user?.id || m.user_id;
+              return {
+                id: `c_${Date.now()}_${idx + 1}_${m.user_id}`,
+                contributor_id: contribAddr,
+                expected_amount: found.contribution_amount,
+                tx_hash: null,
+                status: 'pending',
+                confirmed_at: null,
+                contributor: m.user || {
+                  id: contribAddr,
+                  nimiq_address: contribAddr,
+                  display_name: 'Member',
+                },
+              };
+            })
+        };
+      });
+
       saveLocalCircle(found);
       return found;
     }
@@ -552,7 +614,8 @@ export async function getCurrentRound(circleId: string): Promise<{ current_round
     const localCircles = getLocalCircles();
     const found = localCircles.find(c => c.id === circleId);
     if (found && found.rounds && found.rounds.length > 0) {
-      return { current_round: found.rounds[0] };
+      const openRound = found.rounds.find((r: any) => r.status === 'open') || found.rounds[0];
+      return { current_round: openRound };
     }
     return { current_round: null };
   }
@@ -562,20 +625,21 @@ export async function getContributionIntent(
   roundId: string,
   fallbackRecipient?: string,
   fallbackAmount?: number
-): Promise<PaymentIntent> {
+): Promise<ContributionIntent> {
   try {
-    return await apiFetch<PaymentIntent>(`/rounds/${roundId}/contributions/intent`, { method: 'POST' });
+    return await apiFetch<ContributionIntent>(`/rounds/${roundId}/contributions/intent`, { method: 'POST' });
   } catch (err) {
     const localCircles = getLocalCircles();
     for (const c of localCircles) {
       const r = c.rounds?.find(rnd => rnd.id === roundId);
       if (r) {
+        const recAddr = r.recipient?.nimiq_address || r.recipient?.id || r.recipient_id || c.organizer_id;
         return {
-          recipient_address: r.recipient?.nimiq_address || c.organizer_id,
+          recipient_address: recAddr,
           amount: c.contribution_amount,
           round_id: r.id,
           contribution_id: `contrib_${Date.now()}`,
-          message: `Rosco: Round ${r.round_number} contribution`,
+          message: `Rosco: Round ${r.round_number} contribution to ${r.recipient?.display_name || 'Recipient'}`,
         };
       }
     }
@@ -592,26 +656,67 @@ export async function getContributionIntent(
   }
 }
 
-export async function confirmContribution(roundId: string, txHash: string): Promise<any> {
+export async function confirmContribution(roundId: string, txHash: string, walletAddress?: string): Promise<any> {
+  const clean = (a?: string | null) => (a ? a.replace(/\s+/g, '').toUpperCase() : '');
+  const myWallet = walletAddress || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') || '' : '');
+  const cleanWallet = clean(myWallet);
+
   try {
-    return await apiFetch(`/rounds/${roundId}/contributions/confirm`, {
+    const res = await apiFetch<any>(`/rounds/${roundId}/contributions/confirm`, {
       method: 'POST',
-      body: JSON.stringify({ tx_hash: txHash }),
+      headers: {
+        'x-wallet-address': myWallet,
+      },
+      body: JSON.stringify({
+        tx_hash: txHash,
+        wallet_address: myWallet,
+        contributor_id: myWallet,
+      }),
     });
+
+    if (res?.circle) {
+      saveLocalCircle(res.circle);
+    }
+    return res;
   } catch (err) {
     const localCircles = getLocalCircles();
     for (const c of localCircles) {
       const r = c.rounds?.find(rnd => rnd.id === roundId);
       if (r) {
-        const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : '';
-        const contrib = r.contributions?.find(ct => ct.contributor_id === walletAddress);
+        if (!r.contributions) r.contributions = [];
+        let contrib = r.contributions.find((ct: any) => {
+          const ctAddr = clean(ct.contributor_id || ct.contributor?.nimiq_address || ct.contributor?.id);
+          return cleanWallet && ctAddr && cleanWallet === ctAddr;
+        });
+
+        if (!contrib && cleanWallet) {
+          contrib = r.contributions.find((ct: any) => (ct.status || '').toUpperCase() !== 'CONFIRMED');
+        }
+
         if (contrib) {
           contrib.status = 'CONFIRMED';
           contrib.tx_hash = txHash;
           contrib.confirmed_at = new Date().toISOString();
         }
+
+        // Check if all contributions for this round are confirmed
+        const allConfirmed = r.contributions.length > 0 && r.contributions.every(
+          (ct: any) => (ct.status || '').toUpperCase() === 'CONFIRMED'
+        );
+
+        if (allConfirmed) {
+          r.status = 'completed';
+          r.completed_at = new Date().toISOString();
+          const nextRound = c.rounds?.find((rnd: any) => rnd.round_number === r.round_number + 1);
+          if (nextRound) {
+            nextRound.status = 'open';
+          } else {
+            c.status = 'COMPLETED';
+          }
+        }
+
         saveLocalCircle(c);
-        return { success: true, verified: true };
+        return { success: true, verified: true, round_completed: allConfirmed, circle: c };
       }
     }
     return { success: true };
