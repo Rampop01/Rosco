@@ -217,6 +217,60 @@ h1, h2, h3, h4, h5, h6 {
   background: #E2E8F0;
 }
 
+.btn-success {
+  background: #10B981;
+  color: #FFFFFF;
+  border: 1px solid #059669;
+  border-radius: var(--radius-md);
+  padding: 0.55rem 1.15rem;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #059669;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+}
+
+.btn-success:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  background: rgba(239, 68, 68, 0.08);
+  color: #DC2626;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-md);
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  transition: all 0.2s ease;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: #DC2626;
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Badges */
 .badge {
   display: inline-flex;
@@ -231,8 +285,8 @@ h1, h2, h3, h4, h5, h6 {
 
 .badge-forming {
   background: #FEF3C7;
-  color: #D97706;
-  border: 1px solid #FCD34D;
+  color: #B45309;
+  border: 1px solid #FDE68A;
 }
 
 .badge-active {

@@ -6,7 +6,7 @@ import { Header } from '../../../components/Header';
 import { ContributeModal } from '../../../components/ContributeModal';
 import { CountdownTimer } from '../../../components/CountdownTimer';
 import { useAuth } from '../../../context/AuthContext';
-import { CheckCircle2, Lock } from 'lucide-react';
+import { CheckCircle2, Lock, Check, X } from 'lucide-react';
 import {
   getCircle,
   joinCircle,
@@ -465,28 +465,89 @@ export default function CircleDetailPage() {
 
             {activeTab === 'requests' && isOrganizer && (
               <div className="glass-card" style={{ marginBottom: '1.25rem' }}>
-                <h4 style={{ fontSize: '1rem', marginBottom: '0.85rem' }}>Pending Join Requests</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.9rem' }}>
+                  <h4 style={{ fontSize: '1.05rem', color: '#0F172A', fontWeight: 800 }}>Pending Join Requests</h4>
+                  {joinRequests.length > 0 && (
+                    <span className="badge" style={{ background: 'rgba(0, 102, 255, 0.08)', color: '#0066FF', border: '1px solid rgba(0, 102, 255, 0.2)', fontSize: '0.72rem', fontWeight: 800 }}>
+                      {joinRequests.length} pending
+                    </span>
+                  )}
+                </div>
+
                 {joinRequests.length === 0 ? (
-                  <p className="text-muted" style={{ fontSize: '0.85rem' }}>No pending requests.</p>
+                  <div style={{ textAlign: 'center', padding: '1.5rem', background: '#F8FAFC', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                    <p className="text-muted" style={{ fontSize: '0.85rem' }}>No pending join requests.</p>
+                  </div>
                 ) : (
-                  joinRequests.map(req => (
-                    <div key={req.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem', background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-sm)', marginBottom: '0.5rem' }}>
-                      <div>
-                        <strong style={{ fontSize: '0.9rem', display: 'block' }}>{req.user.display_name}</strong>
-                        <span className="text-muted" style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>
-                          {req.user.nimiq_address.slice(0, 10)}...
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.4rem' }}>
-                        <button className="btn-success" onClick={() => handleApprove(req.id)} disabled={actionLoading}>
-                          Approve
-                        </button>
-                        <button className="btn-danger" onClick={() => handleReject(req.id)} disabled={actionLoading}>
-                          Reject
-                        </button>
-                      </div>
-                    </div>
-                  ))
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    {joinRequests.map(req => {
+                      const initial = (req.user.display_name || 'Member')[0].toUpperCase();
+                      return (
+                        <div
+                          key={req.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: '0.75rem',
+                            padding: '0.85rem 1rem',
+                            background: '#F8FAFC',
+                            border: '1px solid #E2E8F0',
+                            borderRadius: '14px',
+                            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '50%',
+                              background: 'linear-gradient(135deg, #0066FF 0%, #0040B0 100%)',
+                              color: '#FFFFFF',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 800,
+                              fontSize: '0.88rem',
+                              flexShrink: 0
+                            }}>
+                              {initial}
+                            </div>
+                            <div>
+                              <strong style={{ fontSize: '0.95rem', color: '#0F172A', display: 'block' }}>
+                                {req.user.display_name}
+                              </strong>
+                              <span style={{ fontSize: '0.76rem', color: '#64748B', fontFamily: 'monospace' }}>
+                                {req.user.nimiq_address.slice(0, 10)}...{req.user.nimiq_address.slice(-4)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <button
+                              className="btn-success"
+                              onClick={() => handleApprove(req.id)}
+                              disabled={actionLoading}
+                              title="Approve Member"
+                            >
+                              <Check style={{ width: 15, height: 15 }} />
+                              <span>Approve</span>
+                            </button>
+                            <button
+                              className="btn-danger"
+                              onClick={() => handleReject(req.id)}
+                              disabled={actionLoading}
+                              title="Reject Request"
+                            >
+                              <X style={{ width: 15, height: 15 }} />
+                              <span>Reject</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             )}

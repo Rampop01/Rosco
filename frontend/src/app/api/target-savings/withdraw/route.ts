@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const DEFAULT_MAINNET_RPC = 'https://rpc.nimiqwatch.com';
-const DEFAULT_TESTNET_RPC = 'https://rpc.pos.nimiq-testnet.com';
+const DEFAULT_TESTNET_RPC = 'https://v2.nimiq-testnet.nuxt.dev';
 
 export async function POST(req: NextRequest) {
   try {
