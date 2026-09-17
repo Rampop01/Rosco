@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { RoscoLogo } from './RoscoLogo';
 
 interface LandingPageProps {
   onConnectWallet: (displayName?: string) => void;
@@ -122,7 +123,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onConnectWallet, isLog
           onClick={isLoggedIn && onGoToDashboard ? onGoToDashboard : () => scrollToSection('hero')} 
           style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer' }}
         >
-          <div className="brand-icon">R</div>
+          <RoscoLogo size={34} />
           <span className="brand-title">Rosco</span>
         </div>
 
@@ -656,9 +657,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onConnectWallet, isLog
         color: 'var(--text-secondary)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-          <div className="brand-icon" style={{ width: '28px', height: '28px', fontSize: '0.9rem' }}>
-            R
-          </div>
+          <RoscoLogo size={28} />
           <strong style={{ color: '#0F172A' }}>Rosco Protocol</strong> — Rotating Savings Circles for Nimiq Pay
         </div>
         <div>

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
 import { Copy, Check } from 'lucide-react';
 import { NotificationCenter } from './NotificationCenter';
+import { RoscoLogo } from './RoscoLogo';
 
 interface HeaderProps {
   title?: string;
@@ -45,9 +46,7 @@ export const Header: React.FC<HeaderProps> = ({ title, onBack, onShowLanding, is
             className="brand-logo"
             style={{ minWidth: 0, cursor: 'pointer' }}
           >
-            <div className="brand-icon">
-              R
-            </div>
+            <RoscoLogo size={34} />
             <div 
               className="brand-title"
               style={{

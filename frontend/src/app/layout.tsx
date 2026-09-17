@@ -3,8 +3,12 @@ import React from 'react';
 import { AuthProvider } from '../context/AuthContext';
 
 export const metadata = {
-  title: 'Rosco — Rotating Savings Circle (Nimiq Pay Mini App)',
-  description: 'Non-custodial digital ROSCA for Nimiq Pay. Group savings made seamless.',
+  title: 'Rosco — Rotating Savings & Personal Target Vault (Nimiq Pay)',
+  description: 'Non-custodial decentralized rotating savings and solo target vaults powered by Nimiq.',
+  icons: {
+    icon: '/rosco_logo.jpg',
+    apple: '/rosco_logo.jpg',
+  },
 };
 
 export default function RootLayout({

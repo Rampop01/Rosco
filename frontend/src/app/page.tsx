@@ -7,6 +7,7 @@ import { CircleCard } from '../components/CircleCard';
 import { LandingPage } from '../components/LandingPage';
 import { getCircles, Circle } from '../lib/api';
 import { TargetSavingsView } from '../components/TargetSavingsView';
+import { RoscoLogo } from '../components/RoscoLogo';
 import Link from 'next/link';
 import { Copy, Check, Users, Target } from 'lucide-react';
 
@@ -56,10 +57,15 @@ export default function Home() {
   if (isLoading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '85vh', padding: '2rem' }}>
-        <div className="pulse-glow" style={{ width: '70px', height: '70px', borderRadius: '16px', background: 'linear-gradient(135deg, #FFD700, #E6B400)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.2rem', color: '#080B11', fontWeight: 900 }}>
-          R
+        <div className="pulse-glow" style={{ padding: '0.65rem', borderRadius: '50%', background: 'rgba(0, 102, 255, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <RoscoLogo size={76} />
         </div>
-        <p className="text-muted" style={{ marginTop: '1.25rem', fontWeight: 600, fontSize: '0.95rem' }}>Loading Rosco Protocol...</p>
+        <h3 style={{ marginTop: '1.25rem', fontWeight: 800, fontSize: '1.25rem', color: '#0F172A', letterSpacing: '-0.02em' }}>
+          Rosco Protocol
+        </h3>
+        <p className="text-muted" style={{ marginTop: '0.25rem', fontWeight: 500, fontSize: '0.85rem' }}>
+          Connecting to Nimiq Network...
+        </p>
       </div>
     );
   }
