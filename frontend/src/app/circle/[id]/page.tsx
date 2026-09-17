@@ -632,7 +632,7 @@ export default function CircleDetailPage() {
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
-                  Round {currentRound.round_number} of {circle.max_members}
+                  Round {currentRound.round_number} of {circle.rounds?.length || approvedMembers.length}
                 </h3>
                 <span style={{
                   background: '#ECFDF5',
@@ -770,7 +770,7 @@ export default function CircleDetailPage() {
               marginBottom: '1.25rem'
             }}>
               <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', marginBottom: '1rem' }}>
-                Contributions Status ({currentRound.contributions?.filter(c => c.status === 'CONFIRMED').length || 0} / {circle.max_members - 1})
+                Contributions Status ({currentRound.contributions?.filter(c => c.status === 'CONFIRMED').length || 0} / {currentRound.contributions?.length || Math.max(1, approvedMembers.length - 1)} Paid)
               </h4>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
