@@ -10,9 +10,10 @@ export async function POST(
     return NextResponse.json({ error: 'Circle not found' }, { status: 404 });
   }
 
-  const clean = (a: string) => (a ? a.replace(/\s+/g, '').toUpperCase() : '');
+  const clean = (a?: string | null) => (a ? a.replace(/\s+/g, '').toUpperCase() : '');
+  const target = clean(params.mid);
   const membership = (circle.memberships || []).find(
-    (m: any) => m.id === params.mid || clean(m.user_id) === clean(params.mid)
+    (m: any) => m.id === params.mid || clean(m.user_id) === target || clean(m.user?.nimiq_address) === target || clean(m.user?.id) === target
   );
 
   if (membership) {
@@ -21,7 +22,7 @@ export async function POST(
   } else {
     // If not found by id, filter out any matches
     circle.memberships = (circle.memberships || []).filter(
-      (m: any) => m.id !== params.mid && clean(m.user_id) !== clean(params.mid)
+      (m: any) => m.id !== params.mid && clean(m.user_id) !== target && clean(m.user?.nimiq_address) !== target && clean(m.user?.id) !== target
     );
   }
   saveCircle(circle);
