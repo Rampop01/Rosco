@@ -3,7 +3,7 @@
  * Handles JWT token storage, injection, and error handling.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '/api' : 'http://localhost:3000/api');
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '/api' : 'http://localhost:3000/api')).replace(/^["']|["']$/g, '').replace(/\/+$/, '');
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
