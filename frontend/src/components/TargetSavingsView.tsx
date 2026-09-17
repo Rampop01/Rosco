@@ -19,7 +19,7 @@ interface TargetSavingsViewProps {
   userAddress: string;
 }
 
-const ROSCO_VAULT_ADDRESS = process.env.NEXT_PUBLIC_ROSCO_VAULT_ADDRESS || 'NQ27 U8FE BP15 QM00 D3AU BSVP J3DD 3UHG AL6U';
+const ROSCO_VAULT_ADDRESS = (process.env.NEXT_PUBLIC_ROSCO_VAULT_ADDRESS || 'NQ27 U8FE BP15 QM00 D3AU BSVP J3DD 3UHG AL6U').replace(/["']/g, '').trim();
 
 const CATEGORY_ICONS: Record<string, string> = {
   Tech: '💻',

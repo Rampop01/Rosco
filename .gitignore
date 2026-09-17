@@ -32,3 +32,5 @@ pnpm-debug.log*
 
 # Next.js telemetry / cache
 .next/cache/
+*.tsbuildinfo
+

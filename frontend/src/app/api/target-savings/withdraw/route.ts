@@ -34,7 +34,9 @@ export async function POST(req: NextRequest) {
     const N = await import('@nimiq/core');
 
     // 1. Derive Vault KeyPair from Mnemonic (BIP39 + Ed25519 is identical on Mainnet & Testnet)
-    const words = seedWords.trim().split(/\s+/);
+    // Strip accidental surrounding quotes and split by whitespace
+    const cleanSeed = seedWords.trim().replace(/^["']|["']$/g, '').trim();
+    const words = cleanSeed.split(/\s+/);
     const extPrivKey = N.MnemonicUtils.mnemonicToExtendedPrivateKey(words);
     const derived = extPrivKey.derivePath("m/44'/242'/0'/0'");
     const vaultKey = N.KeyPair.derive(derived.privateKey);
