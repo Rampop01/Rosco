@@ -365,27 +365,51 @@ export async function getCircle(id: string): Promise<Circle> {
 export async function joinCircle(circleId: string): Promise<{ id: string; status: string; message: string }> {
   const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') || '' : '';
   const walletLabel = typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_label') || 'Member' : 'Member';
+  const localCircles = getLocalCircles();
+  const localCircle = localCircles.find(c => c.id === circleId);
 
   try {
-    return await apiFetch(`/circles/${circleId}/join-request`, {
+    const res = await apiFetch<{ id: string; status: string; message: string; membership?: any }>(`/circles/${circleId}/join-request`, {
       method: 'POST',
       headers: {
         'x-wallet-address': walletAddress
       },
       body: JSON.stringify({
         user_id: walletAddress,
-        display_name: walletLabel
+        display_name: walletLabel,
+        circle: localCircle
       })
     });
-  } catch (err) {
-    const localCircles = getLocalCircles();
-    const found = localCircles.find(c => c.id === circleId);
-    if (found) {
-      if (!found.memberships) found.memberships = [];
+
+    if (localCircle) {
+      if (!localCircle.memberships) localCircle.memberships = [];
       const clean = (a: string) => a.replace(/\s+/g, '').toUpperCase();
-      const existing = found.memberships.find(m => clean(m.user_id) === clean(walletAddress));
+      const existing = localCircle.memberships.find(m => clean(m.user_id) === clean(walletAddress));
       if (!existing) {
-        found.memberships.push({
+        localCircle.memberships.push({
+          id: res.membership?.id || `m_${Date.now()}`,
+          user_id: walletAddress,
+          status: 'PENDING',
+          joined_order: null,
+          user: {
+            id: walletAddress,
+            nimiq_address: walletAddress,
+            display_name: walletLabel,
+          }
+        });
+        saveLocalCircle(localCircle);
+      }
+    }
+
+    return res;
+  } catch (err) {
+    console.warn('[Rosco] Failed to submit join-request to server, saving locally:', err);
+    if (localCircle) {
+      if (!localCircle.memberships) localCircle.memberships = [];
+      const clean = (a: string) => a.replace(/\s+/g, '').toUpperCase();
+      const existing = localCircle.memberships.find(m => clean(m.user_id) === clean(walletAddress));
+      if (!existing) {
+        localCircle.memberships.push({
           id: `m_${Date.now()}`,
           user_id: walletAddress,
           status: 'PENDING',
@@ -396,7 +420,7 @@ export async function joinCircle(circleId: string): Promise<{ id: string; status
             display_name: walletLabel,
           }
         });
-        saveLocalCircle(found);
+        saveLocalCircle(localCircle);
       }
       return { id: `m_${Date.now()}`, status: 'PENDING', message: 'Join request submitted' };
     }
@@ -407,7 +431,7 @@ export async function joinCircle(circleId: string): Promise<{ id: string; status
 export async function getJoinRequests(circleId: string): Promise<JoinRequest[]> {
   try {
     const res = await apiFetch<JoinRequest[]>(`/circles/${circleId}/join-requests`);
-    if (res && res.length > 0) return res;
+    if (Array.isArray(res)) return res;
   } catch (e) {
     console.warn('[Rosco] Failed to fetch join requests from API, checking local store:', e);
   }

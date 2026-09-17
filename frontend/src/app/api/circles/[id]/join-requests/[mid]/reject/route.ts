@@ -10,7 +10,10 @@ export async function POST(
     return NextResponse.json({ error: 'Circle not found' }, { status: 404 });
   }
 
-  circle.memberships = (circle.memberships || []).filter((m: any) => m.id !== params.mid);
+  const clean = (a: string) => (a ? a.replace(/\s+/g, '').toUpperCase() : '');
+  circle.memberships = (circle.memberships || []).filter(
+    (m: any) => m.id !== params.mid && clean(m.user_id) !== clean(params.mid)
+  );
   saveCircle(circle);
 
   return NextResponse.json({ success: true, message: 'Request rejected' });

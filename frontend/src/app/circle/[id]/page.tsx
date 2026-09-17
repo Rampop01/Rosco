@@ -41,14 +41,20 @@ export default function CircleDetailPage() {
   const clean = (addr?: string | null) => (addr ? addr.replace(/\s+/g, '').toUpperCase() : '');
 
   useEffect(() => {
-    if (circleId) {
-      loadCircleData();
-    }
+    if (!circleId) return;
+    loadCircleData();
+
+    // Auto-poll in background every 4s when circle is forming so requests appear in real time
+    const interval = setInterval(() => {
+      loadCircleData(true);
+    }, 4000);
+
+    return () => clearInterval(interval);
   }, [circleId, user?.id, wallet?.address]);
 
-  const loadCircleData = async () => {
+  const loadCircleData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data = await getCircle(circleId);
 
       // Auto-heal dummy address ONLY if the circle was actually created on this device
@@ -115,19 +121,19 @@ export default function CircleDetailPage() {
       }
 
       const activeWallet = clean(wallet?.address || user?.nimiq_address || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null));
-      const orgWallet = clean(data.organizer_id);
-      const isOrgCheck = activeWallet && orgWallet && activeWallet === orgWallet;
+      const orgWallet = clean(data.organizer_id || data.organizer?.nimiq_address);
+      const isOrgCheck = isCreatorDevice || (activeWallet && orgWallet && activeWallet === orgWallet);
 
-      if (isOrgCheck && data.status === 'FORMING') {
+      if (data.status === 'FORMING') {
         let requests = await getJoinRequests(circleId);
         if (data.memberships) {
           const directPending = data.memberships
-            .filter((m: any) => m.status === 'PENDING' && !requests.some(r => r.id === m.id || r.user_id === m.user_id))
+            .filter((m: any) => m.status === 'PENDING' && !requests.some(r => r.id === m.id || clean(r.user_id) === clean(m.user_id)))
             .map((m: any) => ({
               id: m.id,
               user_id: m.user_id,
               status: m.status,
-              requested_at: new Date().toISOString(),
+              requested_at: m.created_at || new Date().toISOString(),
               user: m.user || {
                 id: m.user_id,
                 nimiq_address: m.user_id,
@@ -141,7 +147,7 @@ export default function CircleDetailPage() {
         setJoinRequests(requests);
         const pendingCount = requests.filter(r => r.status === 'PENDING').length;
         const reqKey = `rosco_notified_req_${circleId}_${pendingCount}`;
-        if (pendingCount > 0 && typeof window !== 'undefined' && !sessionStorage.getItem(reqKey)) {
+        if (isOrgCheck && pendingCount > 0 && typeof window !== 'undefined' && !sessionStorage.getItem(reqKey)) {
           addNotification({
             title: 'New Join Requests 👥',
             message: `${pendingCount} member(s) requested to join ${data.name}. Review them now.`,
@@ -172,9 +178,9 @@ export default function CircleDetailPage() {
       }
     } catch (err: any) {
       console.error('Failed to load circle:', err);
-      setErrorMsg(err.message || 'Failed to load circle');
+      if (!silent) setErrorMsg(err.message || 'Failed to load circle');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -185,8 +191,12 @@ export default function CircleDetailPage() {
   );
   const orgAddr = clean(circle?.organizer_id || circle?.organizer?.nimiq_address);
 
-  // The organizer is the creator of the circle
-  const isOrganizer = !!(activeWalletAddr && orgAddr && activeWalletAddr === orgAddr);
+  // The organizer is either matching wallet OR the device that created the circle
+  const isCreatorDevice = typeof window !== 'undefined' && circle?.id && localStorage.getItem('rosco_creator_' + circle.id) === 'true';
+  const isOrganizer = !!(
+    isCreatorDevice ||
+    (activeWalletAddr && orgAddr && activeWalletAddr === orgAddr)
+  );
 
   // Find membership
   const myMembership = circle?.memberships?.find(m => {
@@ -437,6 +447,49 @@ export default function CircleDetailPage() {
                 <p className="text-muted" style={{ fontSize: '0.85rem', marginTop: '0.35rem' }}>
                   Share the invite link with friends to fill all {circle.max_members} spots, then launch the circle.
                 </p>
+              </div>
+            )}
+
+            {/* Prominent Pending Requests Alert Banner for Organizer */}
+            {isOrganizer && circle.status === 'FORMING' && pendingCount > 0 && activeTab !== 'requests' && (
+              <div 
+                onClick={() => setActiveTab('requests')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.9rem 1.1rem',
+                  background: 'linear-gradient(135deg, rgba(0, 102, 255, 0.08) 0%, rgba(0, 102, 255, 0.16) 100%)',
+                  border: '1.5px solid rgba(0, 102, 255, 0.35)',
+                  borderRadius: '14px',
+                  marginBottom: '1.25rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0, 102, 255, 0.08)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <span style={{ fontSize: '1.4rem' }}>👥</span>
+                  <div>
+                    <strong style={{ color: '#0066FF', fontSize: '0.95rem', display: 'block' }}>
+                      {pendingCount} Pending Member Request{pendingCount > 1 ? 's' : ''}!
+                    </strong>
+                    <span style={{ color: '#475569', fontSize: '0.8rem' }}>
+                      Click here to review and approve members into this circle.
+                    </span>
+                  </div>
+                </div>
+                <span style={{
+                  background: '#0066FF',
+                  color: '#FFFFFF',
+                  fontSize: '0.78rem',
+                  fontWeight: 800,
+                  padding: '0.4rem 0.85rem',
+                  borderRadius: '8px',
+                  whiteSpace: 'nowrap'
+                }}>
+                  Review ({pendingCount}) →
+                </span>
               </div>
             )}
 

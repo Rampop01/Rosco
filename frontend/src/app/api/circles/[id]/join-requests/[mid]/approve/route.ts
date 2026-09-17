@@ -10,7 +10,11 @@ export async function POST(
     return NextResponse.json({ error: 'Circle not found' }, { status: 404 });
   }
 
-  const membership = (circle.memberships || []).find((m: any) => m.id === params.mid);
+  const clean = (a: string) => (a ? a.replace(/\s+/g, '').toUpperCase() : '');
+  const membership = (circle.memberships || []).find(
+    (m: any) => m.id === params.mid || clean(m.user_id) === clean(params.mid)
+  );
+
   if (!membership) {
     return NextResponse.json({ error: 'Join request not found' }, { status: 404 });
   }
@@ -20,5 +24,5 @@ export async function POST(
   membership.joined_order = approvedCount + 1;
   saveCircle(circle);
 
-  return NextResponse.json({ success: true, membership });
+  return NextResponse.json({ success: true, membership, circle });
 }
