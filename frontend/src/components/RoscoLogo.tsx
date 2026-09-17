@@ -7,6 +7,7 @@ interface RoscoLogoProps {
   showText?: boolean;
   textColor?: string;
   className?: string;
+  onClick?: () => void;
 }
 
 export const RoscoLogo: React.FC<RoscoLogoProps> = ({
@@ -14,99 +15,53 @@ export const RoscoLogo: React.FC<RoscoLogoProps> = ({
   showText = false,
   textColor = '#0F172A',
   className = '',
+  onClick,
 }) => {
   return (
-    <div className={`inline-flex items-center gap-2 ${className}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.65rem' }}>
-      {/* Dynamic Geometric Rosco Emblem */}
-      <svg
-        width={size}
-        height={size}
-        viewBox="0 0 100 100"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        style={{ flexShrink: 0 }}
+    <div 
+      className={`inline-flex items-center gap-2 ${className}`} 
+      onClick={onClick}
+      style={{ 
+        display: 'inline-flex', 
+        alignItems: 'center', 
+        gap: '0.65rem',
+        cursor: onClick ? 'pointer' : 'default',
+        userSelect: 'none'
+      }}
+    >
+      {/* 3D Interlocking Rotating Ribbon Emblem */}
+      <div 
+        style={{ 
+          width: `${size}px`, 
+          height: `${size}px`, 
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          filter: 'drop-shadow(0 2px 6px rgba(0, 102, 255, 0.2))',
+          transition: 'transform 0.2s ease',
+        }}
       >
-        <defs>
-          <linearGradient id="roscoBlueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#0066FF" />
-            <stop offset="50%" stopColor="#0052CC" />
-            <stop offset="100%" stopColor="#003399" />
-          </linearGradient>
-          <linearGradient id="roscoCyanGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#00D2FF" />
-            <stop offset="100%" stopColor="#0066FF" />
-          </linearGradient>
-          <linearGradient id="roscoGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#FCD34D" />
-            <stop offset="50%" stopColor="#F59E0B" />
-            <stop offset="100%" stopColor="#D97706" />
-          </linearGradient>
-          <filter id="subtleGlow" x="-10%" y="-10%" width="120%" height="120%">
-            <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#0066FF" floodOpacity="0.25" />
-          </filter>
-        </defs>
-
-        {/* Outer Rotating Savings Circle (ROSCA loop) */}
-        <circle
-          cx="50"
-          cy="50"
-          r="44"
-          stroke="url(#roscoBlueGrad)"
-          strokeWidth="9"
-          strokeDasharray="210 65"
-          strokeLinecap="round"
-          filter="url(#subtleGlow)"
+        <img
+          src="/rosco_logo.jpg"
+          alt="Rosco Logo"
+          width={size}
+          height={size}
+          style={{
+            width: `${size}px`,
+            height: `${size}px`,
+            objectFit: 'contain',
+            borderRadius: '50%',
+            display: 'block',
+          }}
         />
-
-        {/* Inner Gold Accented Cycle Arc */}
-        <circle
-          cx="50"
-          cy="50"
-          r="36"
-          stroke="url(#roscoGoldGrad)"
-          strokeWidth="3.5"
-          strokeDasharray="90 140"
-          strokeLinecap="round"
-          transform="rotate(65 50 50)"
-        />
-
-        {/* Cyan Orbit Ribbon */}
-        <circle
-          cx="50"
-          cy="50"
-          r="44"
-          stroke="url(#roscoCyanGrad)"
-          strokeWidth="4"
-          strokeDasharray="60 215"
-          strokeLinecap="round"
-          transform="rotate(190 50 50)"
-        />
-
-        {/* Stylized Modern "R" Glyph */}
-        <path
-          d="M 38 29
-             L 38 71
-             M 38 31
-             L 53 31
-             C 63 31, 65 47, 53 47
-             L 38 47
-             M 49 47
-             L 63 71"
-          stroke="#0066FF"
-          strokeWidth="8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-
-        {/* Center Golden Pivot Dot */}
-        <circle cx="51" cy="39" r="2.5" fill="#F59E0B" />
-      </svg>
+      </div>
 
       {showText && (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <span
             style={{
-              fontSize: `${Math.round(size * 0.65)}px`,
+              fontSize: `${Math.max(16, Math.round(size * 0.62))}px`,
               fontWeight: 900,
               fontFamily: 'var(--font-heading)',
               color: textColor,
