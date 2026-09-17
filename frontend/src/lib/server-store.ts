@@ -98,6 +98,15 @@ export function saveCircle(circle: ServerCircle): ServerCircle {
   return circle;
 }
 
+export function deleteCircleById(id: string): boolean {
+  const map = loadStore();
+  const deleted = map.delete(id);
+  if (deleted) {
+    persistStore(map);
+  }
+  return deleted;
+}
+
 export function clearAllCircles(): void {
   const map = loadStore();
   map.clear();

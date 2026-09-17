@@ -14,6 +14,7 @@ import {
   approveJoinRequest,
   rejectJoinRequest,
   startCircle,
+  deleteCircle,
   getCurrentRound,
   Circle,
   JoinRequest,
@@ -87,16 +88,25 @@ export default function CircleDetailPage() {
       setCircle(data);
 
       if (data.status === 'ACTIVE') {
-        const roundRes = await getCurrentRound(circleId);
-        if (roundRes?.current_round) {
-          setCurrentRound(roundRes.current_round);
+        let activeRound: RoundInfo | null = null;
+        try {
+          const roundRes = await getCurrentRound(circleId);
+          if (roundRes?.current_round) activeRound = roundRes.current_round;
+        } catch {}
+
+        if (!activeRound && data.rounds && data.rounds.length > 0) {
+          activeRound = data.rounds.find((r: any) => r.status === 'open') || data.rounds[0];
+        }
+
+        if (activeRound) {
+          setCurrentRound(activeRound);
 
           // Alert user of upcoming contribution if not already notified
-          const notifKey = `rosco_notified_round_${roundRes.current_round.id}`;
+          const notifKey = `rosco_notified_round_${activeRound.id}`;
           if (typeof window !== 'undefined' && !localStorage.getItem(notifKey)) {
             addNotification({
               title: 'Next Contribution Due',
-              message: `Round #${roundRes.current_round.round_number} of ${data.name} is active. Contribution of ${data.contribution_amount} NIM is due.`,
+              message: `Round #${activeRound.round_number} of ${data.name} is active. Contribution of ${data.contribution_amount} NIM is due.`,
               type: 'contribution_due',
               link: `/circle/${circleId}`,
               circle_id: circleId,
@@ -106,8 +116,10 @@ export default function CircleDetailPage() {
           }
 
           // Alert user if they are the winner/recipient of this round
-          const winnerKey = `rosco_notified_winner_${roundRes.current_round.id}`;
-          if (user && roundRes.current_round.recipient_id === user.id && !localStorage.getItem(winnerKey)) {
+          const activeWalletAddr = clean(wallet?.address || user?.nimiq_address || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null));
+          const winnerKey = `rosco_notified_winner_${activeRound.id}`;
+          const isMeWinner = activeWalletAddr && (clean(activeRound.recipient_id) === activeWalletAddr || clean(activeRound.recipient?.nimiq_address) === activeWalletAddr);
+          if (isMeWinner && !localStorage.getItem(winnerKey)) {
             addNotification({
               title: 'You Are The Round Recipient! 🏆',
               message: `You are scheduled to receive the round payout in ${data.name}!`,
@@ -308,6 +320,32 @@ export default function CircleDetailPage() {
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleDeleteCircle = async () => {
+    if (!circle) return;
+    if (circle.status !== 'FORMING') {
+      alert('Active circles cannot be deleted to protect member contributions and scheduled round payouts.');
+      return;
+    }
+    if (!confirm(`Are you sure you want to cancel and delete "${circle.name}"? Since it hasn't started, all pending requests will be cancelled.`)) {
+      return;
+    }
+    try {
+      setActionLoading(true);
+      await deleteCircle(circleId);
+      addNotification({
+        title: 'Circle Cancelled',
+        message: `Circle "${circle.name}" was cancelled and removed.`,
+        type: 'system',
+        link: '/',
+      });
+      router.push('/');
+    } catch (err: any) {
+      alert(err.message || 'Failed to cancel circle');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   if (loading) {
@@ -689,6 +727,45 @@ export default function CircleDetailPage() {
                 🚀 Start Circle (Assign Random Payout Order)
               </button>
             )}
+
+            {/* Cancel / Delete Circle — Allowed ONLY when circle is still FORMING */}
+            {isOrganizer && (
+              <div style={{ marginTop: '1.25rem', textAlign: 'center' }}>
+                <button
+                  onClick={handleDeleteCircle}
+                  disabled={actionLoading}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid #CBD5E1',
+                    color: '#64748B',
+                    padding: '0.45rem 0.9rem',
+                    borderRadius: '10px',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.borderColor = '#EF4444';
+                    e.currentTarget.style.color = '#EF4444';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.borderColor = '#CBD5E1';
+                    e.currentTarget.style.color = '#64748B';
+                  }}
+                  title="Cancel and delete this circle while still forming"
+                >
+                  <span>🗑️</span>
+                  <span>Cancel & Delete Circle</span>
+                </button>
+                <p className="text-muted" style={{ fontSize: '0.74rem', marginTop: '0.35rem' }}>
+                  Circles can only be deleted while still forming. Once active, deletion is locked to safeguard all member funds.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -759,79 +836,164 @@ export default function CircleDetailPage() {
               </div>
 
               {/* Action Button & Contribution Lock with Countdown */}
-              {isMember && (
-                (() => {
-                  const isRecipient = user && (currentRound.recipient_id === user.id || currentRound.recipient?.nimiq_address === user.nimiq_address);
-                  const myContrib = currentRound.contributions?.find(
-                    c => c.contributor_id === user?.id || c.contributor?.nimiq_address === user?.nimiq_address
-                  );
-                  const hasPaid = myContrib?.status === 'CONFIRMED';
-                  const roundDueDate = currentRound.due_date || new Date(Date.now() + 7 * 86400000).toISOString();
+              {(() => {
+                const myWallet = clean(
+                  wallet?.address ||
+                  user?.nimiq_address ||
+                  (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null)
+                );
+                const recWallet = clean(currentRound.recipient_id || currentRound.recipient?.nimiq_address);
+                const isRecipient = !!(myWallet && recWallet && myWallet === recWallet);
 
-                  if (isRecipient) {
-                    return null;
-                  }
+                const myContrib = currentRound.contributions?.find(c => {
+                  const cAddr = clean(c.contributor_id || c.contributor?.nimiq_address);
+                  return myWallet && cAddr && myWallet === cAddr;
+                });
+                const hasPaid = myContrib?.status === 'CONFIRMED';
+                const roundDueDate = currentRound.due_date || new Date(Date.now() + 7 * 86400000).toISOString();
 
-                  if (hasPaid) {
-                    return (
-                      <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        <div style={{
-                          background: 'rgba(16, 185, 129, 0.15)',
-                          border: '1px solid #10B981',
-                          borderRadius: '12px',
-                          padding: '0.85rem 1rem',
-                          textAlign: 'center',
-                          color: '#10B981'
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontWeight: 800 }}>
-                            <CheckCircle2 style={{ width: '18px', height: '18px' }} />
-                            <span>Round {currentRound.round_number} Contribution Paid</span>
-                          </div>
-                          <p style={{ fontSize: '0.82rem', color: '#CBD5E1', marginTop: '0.25rem' }}>
-                            You cannot contribute again until the current round finishes and the next round begins.
-                          </p>
-                        </div>
-
-                        <CountdownTimer 
-                          targetDate={roundDueDate} 
-                          label="Next Round Contribution Opens In" 
-                        />
-
-                        <button 
-                          className="btn-secondary" 
-                          disabled 
-                          style={{
-                            width: '100%',
-                            opacity: 0.6,
-                            cursor: 'not-allowed',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '0.4rem',
-                            padding: '0.75rem'
-                          }}
-                        >
-                          <Lock style={{ width: '15px', height: '15px' }} />
-                          <span>Contribution Locked Until Next Round</span>
-                        </button>
-                      </div>
-                    );
-                  }
-
+                // Not connected yet
+                if (!myWallet) {
                   return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                      <CountdownTimer 
-                        targetDate={roundDueDate} 
-                        label="Round Contribution Deadline" 
-                      />
-
-                      <button className="btn-primary" onClick={() => setShowPayModal(true)} style={{ width: '100%', padding: '0.9rem' }}>
-                        💳 Pay Round ({circle.contribution_amount} {circle.currency})
+                    <div style={{ marginTop: '0.85rem' }}>
+                      <button 
+                        className="btn-primary" 
+                        onClick={() => connectWallet()}
+                        style={{
+                          width: '100%',
+                          padding: '0.95rem',
+                          fontSize: '1rem',
+                          fontWeight: 800,
+                          background: 'linear-gradient(135deg, #0066FF 0%, #0040B0 100%)',
+                          boxShadow: '0 4px 14px rgba(0, 102, 255, 0.25)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        ⚡ Connect Nimiq Wallet to Pay Round ({circle.contribution_amount} {circle.currency})
                       </button>
                     </div>
                   );
-                })()
-              )}
+                }
+
+                // If user is the recipient for this round
+                if (isRecipient) {
+                  return (
+                    <div style={{
+                      marginTop: '0.85rem',
+                      background: '#ECFDF5',
+                      border: '1.5px solid #10B981',
+                      borderRadius: '12px',
+                      padding: '1rem',
+                      textAlign: 'center',
+                      color: '#065F46'
+                    }}>
+                      <div style={{ fontSize: '1.5rem', marginBottom: '0.35rem' }}>🏆</div>
+                      <strong style={{ fontSize: '1.05rem', display: 'block', marginBottom: '0.25rem' }}>
+                        You are the Recipient for Round #{currentRound.round_number}!
+                      </strong>
+                      <p style={{ fontSize: '0.85rem', color: '#047857', margin: 0 }}>
+                        All other members contribute {circle.contribution_amount} {circle.currency} directly to your wallet this round.
+                      </p>
+                    </div>
+                  );
+                }
+
+                // If user has already paid their contribution
+                if (hasPaid) {
+                  return (
+                    <div style={{ marginTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      <div style={{
+                        background: 'rgba(16, 185, 129, 0.12)',
+                        border: '1.5px solid #10B981',
+                        borderRadius: '12px',
+                        padding: '0.85rem 1rem',
+                        textAlign: 'center',
+                        color: '#065F46'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontWeight: 800 }}>
+                          <CheckCircle2 style={{ width: '18px', height: '18px', color: '#10B981' }} />
+                          <span>Round #{currentRound.round_number} Contribution Paid</span>
+                        </div>
+                        <p style={{ fontSize: '0.82rem', color: '#475569', marginTop: '0.25rem', marginBottom: 0 }}>
+                          Your contribution is verified on-chain. Locked until Round #{currentRound.round_number + 1} begins.
+                        </p>
+                      </div>
+
+                      <CountdownTimer 
+                        targetDate={roundDueDate} 
+                        label="Next Round Contribution Opens In" 
+                      />
+
+                      <button 
+                        className="btn-secondary" 
+                        disabled 
+                        style={{
+                          width: '100%',
+                          opacity: 0.6,
+                          cursor: 'not-allowed',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.4rem',
+                          padding: '0.75rem'
+                        }}
+                      >
+                        <Lock style={{ width: '15px', height: '15px' }} />
+                        <span>Contribution Locked Until Next Round</span>
+                      </button>
+                    </div>
+                  );
+                }
+
+                // Member needs to pay!
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.85rem' }}>
+                    <CountdownTimer 
+                      targetDate={roundDueDate} 
+                      label="Round Contribution Deadline" 
+                    />
+
+                    <button 
+                      className="btn-primary" 
+                      onClick={() => setShowPayModal(true)} 
+                      style={{ 
+                        width: '100%', 
+                        padding: '1rem',
+                        fontSize: '1.05rem',
+                        fontWeight: 800,
+                        background: 'linear-gradient(135deg, #0066FF 0%, #0040B0 100%)',
+                        boxShadow: '0 4px 16px rgba(0, 102, 255, 0.35)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      💳 Pay Round ({circle.contribution_amount} {circle.currency}) to {currentRound.recipient?.display_name || 'Recipient'}
+                    </button>
+                  </div>
+                );
+              })()}
+
+              {/* Security notice: active circles are locked against deletion */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.4rem',
+                padding: '0.5rem 0.8rem',
+                background: '#F8FAFC',
+                borderRadius: '10px',
+                color: '#475569',
+                fontSize: '0.76rem',
+                fontWeight: 600,
+                marginTop: '1.25rem',
+                border: '1px solid #E2E8F0'
+              }}>
+                <span>🔒</span>
+                <span>Non-Custodial Lock: Active circles cannot be deleted to prevent default and protect round payouts.</span>
+              </div>
             </div>
 
             {/* Round Contributions Tracker */}

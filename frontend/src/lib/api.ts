@@ -524,9 +524,24 @@ export async function startCircle(circleId: string): Promise<Circle> {
   }
 }
 
-export async function cancelCircle(circleId: string): Promise<any> {
-  return apiFetch(`/circles/${circleId}/cancel`, { method: 'POST' });
+export async function deleteCircle(circleId: string): Promise<any> {
+  try {
+    await apiFetch(`/circles/${circleId}`, { method: 'DELETE' });
+  } catch (err: any) {
+    if (err.message && (err.message.includes('Cannot delete') || err.message.includes('Active circles'))) {
+      throw err;
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    const local = getLocalCircles().filter(c => c.id !== circleId);
+    localStorage.setItem('rosco_local_circles', JSON.stringify(local));
+    localStorage.removeItem('rosco_creator_' + circleId);
+  }
+  return { success: true };
 }
+
+export const cancelCircle = deleteCircle;
 
 // ─── Rounds & Contributions ────────────────────────────────────────────────
 
