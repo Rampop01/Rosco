@@ -97,3 +97,15 @@ export function saveCircle(circle: ServerCircle): ServerCircle {
   persistStore(map);
   return circle;
 }
+
+export function clearAllCircles(): void {
+  const map = loadStore();
+  map.clear();
+  try {
+    if (fs.existsSync(STORE_PATH)) {
+      fs.unlinkSync(STORE_PATH);
+    }
+  } catch (err) {
+    console.warn('[Rosco ServerStore] Could not delete disk store:', err);
+  }
+}

@@ -610,3 +610,27 @@ export async function getContributions(roundId: string): Promise<RoundContributi
     return [];
   }
 }
+
+export async function resetAllTestData(): Promise<void> {
+  try {
+    await apiFetch('/circles', { method: 'DELETE' });
+  } catch (e) {
+    console.warn('[Rosco] Failed to delete remote circles:', e);
+  }
+
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('rosco_local_circles');
+    localStorage.removeItem('kolo_local_circles');
+    localStorage.removeItem('rosco_notifications');
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('rosco_creator_') || k.startsWith('rosco_notified_'))) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+    sessionStorage.clear();
+  }
+}
+

@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { Header } from '../components/Header';
 import { CircleCard } from '../components/CircleCard';
 import { LandingPage } from '../components/LandingPage';
-import { getCircles, Circle } from '../lib/api';
+import { getCircles, resetAllTestData, Circle } from '../lib/api';
 import { TargetSavingsView } from '../components/TargetSavingsView';
 import { RoscoLogo } from '../components/RoscoLogo';
 import Link from 'next/link';
@@ -40,6 +40,19 @@ export default function Home() {
       setCircles(list);
     } catch (err) {
       console.error('Failed to load circles:', err);
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  const handleResetTestCircles = async () => {
+    if (!confirm('Clear all test circles and start with a fresh slate? This will remove all test circles, join requests, and test notifications.')) return;
+    try {
+      setFetching(true);
+      await resetAllTestData();
+      await loadCircles();
+    } catch (err) {
+      console.error('Failed to reset test data:', err);
     } finally {
       setFetching(false);
     }
@@ -318,6 +331,31 @@ export default function Home() {
                 Completed ({completedCount})
               </button>
             </div>
+
+            {circles.length > 0 && (
+              <button
+                onClick={handleResetTestCircles}
+                style={{
+                  padding: '0.45rem 0.85rem',
+                  fontSize: '0.78rem',
+                  borderRadius: '10px',
+                  border: '1px solid #E2E8F0',
+                  background: '#FFFFFF',
+                  color: '#64748B',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                  transition: 'all 0.15s ease'
+                }}
+                title="Clear all test circles and start with a clean slate"
+              >
+                <span>🗑️</span>
+                <span>Clear Test Data</span>
+              </button>
+            )}
           </div>
         </div>
 

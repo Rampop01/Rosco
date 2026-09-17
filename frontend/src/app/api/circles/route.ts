@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllCircles, saveCircle, ServerCircle } from '../../../lib/server-store';
+import { getAllCircles, saveCircle, clearAllCircles, ServerCircle } from '../../../lib/server-store';
 
 export async function GET() {
   return NextResponse.json(getAllCircles());
+}
+
+export async function DELETE() {
+  clearAllCircles();
+  return NextResponse.json({ success: true, message: 'All circles cleared' });
 }
 
 export async function POST(req: NextRequest) {
