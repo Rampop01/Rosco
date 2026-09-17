@@ -68,9 +68,31 @@ export default function CreateCirclePage() {
 
   return (
     <div>
-      <Header title="" onBack={() => router.push('/')} />
+      <Header />
 
-      <main style={{ padding: '1rem 0', maxWidth: '580px', margin: '0 auto' }}>
+      <main style={{ padding: '0.75rem 0', maxWidth: '580px', margin: '0 auto' }}>
+        <button
+          type="button"
+          onClick={() => router.push('/')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            padding: '0.4rem 0.8rem',
+            fontSize: '0.85rem',
+            marginBottom: '1rem',
+            borderRadius: 'var(--radius-full)',
+            border: '1px solid var(--border-color)',
+            background: '#FFFFFF',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+            fontWeight: 600,
+            boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+          }}
+        >
+          ← Back to Dashboard
+        </button>
+
         <form onSubmit={handleSubmit} className="glass-card animate-fade-in" style={{ padding: '1.75rem' }}>
           <div style={{ marginBottom: '1.25rem' }}>
             <h3 style={{ fontSize: '1.4rem', color: '#0F172A', marginBottom: '0.35rem' }}>New Savings Circle</h3>

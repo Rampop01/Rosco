@@ -29,34 +29,22 @@ export const Header: React.FC<HeaderProps> = ({ title, onBack, onShowLanding, is
   return (
     <header className="header-sticky">
       <div className="header-inner">
-        {/* Brand & Back Button */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-          {onBack && (
-            <button 
-              onClick={onBack}
-              className="btn-secondary"
-              style={{ padding: '0.4rem 0.65rem', fontSize: '0.82rem' }}
-            >
-              ← Back
-            </button>
-          )}
-
+        {/* Brand Logo */}
+        <div 
+          onClick={onShowLanding} 
+          className="brand-logo"
+          style={{ minWidth: 0, cursor: 'pointer' }}
+        >
+          <RoscoLogo size={34} />
           <div 
-            onClick={onShowLanding} 
-            className="brand-logo"
-            style={{ minWidth: 0, cursor: 'pointer' }}
+            className="brand-title"
+            style={{
+              fontSize: '1.35rem',
+              fontWeight: 800,
+              letterSpacing: '-0.02em'
+            }}
           >
-            <RoscoLogo size={34} />
-            <div 
-              className="brand-title"
-              style={{
-                fontSize: '1.35rem',
-                fontWeight: 800,
-                letterSpacing: '-0.02em'
-              }}
-            >
-              Rosco
-            </div>
+            Rosco
           </div>
         </div>
 

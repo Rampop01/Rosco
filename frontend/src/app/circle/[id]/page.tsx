@@ -273,7 +273,7 @@ export default function CircleDetailPage() {
   if (loading) {
     return (
       <div>
-        <Header onBack={() => router.push('/')} />
+        <Header />
         <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
           <p className="text-muted">Loading circle details...</p>
         </div>
@@ -284,7 +284,7 @@ export default function CircleDetailPage() {
   if (!circle) {
     return (
       <div>
-        <Header onBack={() => router.push('/')} />
+        <Header />
         <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
           <p className="text-muted">{errorMsg || 'Circle not found'}</p>
         </div>
@@ -297,9 +297,31 @@ export default function CircleDetailPage() {
 
   return (
     <div style={{ paddingBottom: '2rem' }}>
-      <Header onBack={() => router.push('/')} />
+      <Header />
 
       <main style={{ padding: '0.75rem 0' }}>
+        <button
+          type="button"
+          onClick={() => router.push('/')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            padding: '0.4rem 0.8rem',
+            fontSize: '0.85rem',
+            marginBottom: '1rem',
+            borderRadius: 'var(--radius-full)',
+            border: '1px solid var(--border-color)',
+            background: '#FFFFFF',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+            fontWeight: 600,
+            boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+          }}
+        >
+          ← Back to Dashboard
+        </button>
+
         {/* Page Title Block */}
         <div style={{ marginBottom: '1.25rem' }}>
           <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', marginBottom: '0.25rem' }}>
