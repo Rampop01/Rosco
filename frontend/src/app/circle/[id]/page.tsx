@@ -152,6 +152,24 @@ export default function CircleDetailPage() {
           sessionStorage.setItem(reqKey, 'true');
         }
       }
+
+      // Check if current user is a member whose request was approved
+      if (!isOrgCheck && activeWallet) {
+        const userMem = data.memberships?.find((m: any) => clean(m.user_id || m.user?.nimiq_address) === activeWallet);
+        if (userMem?.status === 'APPROVED') {
+          const approvedNotifKey = `rosco_notified_approved_${circleId}`;
+          if (typeof window !== 'undefined' && !localStorage.getItem(approvedNotifKey)) {
+            addNotification({
+              title: 'Request Approved! 🚀',
+              message: `Your request to join ${data.name} was approved! You are now an active member.`,
+              type: 'join',
+              link: `/circle/${circleId}`,
+              circle_id: circleId
+            });
+            localStorage.setItem(approvedNotifKey, 'true');
+          }
+        }
+      }
     } catch (err: any) {
       console.error('Failed to load circle:', err);
       setErrorMsg(err.message || 'Failed to load circle');
@@ -604,37 +622,63 @@ export default function CircleDetailPage() {
         {circle.status === 'ACTIVE' && currentRound && (
           <div>
             {/* Screen 5: Active Round Banner */}
-            <div className="glass-card pulse-glow" style={{
-              background: 'linear-gradient(135deg, rgba(30, 37, 62, 0.9), rgba(18, 22, 38, 0.95))',
-              borderColor: 'var(--accent-gold)',
+            <div className="glass-card" style={{
+              background: '#FFFFFF',
+              border: '1.5px solid #E2E8F0',
+              borderRadius: '16px',
+              padding: '1.5rem',
+              boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
               marginBottom: '1.25rem'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                <h3 style={{ fontSize: '1.2rem', color: 'var(--accent-gold)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
                   Round {currentRound.round_number} of {circle.max_members}
                 </h3>
-                <span className="badge badge-active">IN PROGRESS</span>
+                <span style={{
+                  background: '#ECFDF5',
+                  color: '#059669',
+                  border: '1px solid #A7F3D0',
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  letterSpacing: '0.05em'
+                }}>
+                  IN PROGRESS
+                </span>
               </div>
 
               {/* Recipient Card */}
               <div style={{
-                background: 'rgba(0, 0, 0, 0.3)',
-                padding: '0.85rem',
-                borderRadius: 'var(--radius-md)',
-                marginBottom: '1rem'
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                padding: '1rem 1.15rem',
+                borderRadius: '12px',
+                marginBottom: '1.25rem'
               }}>
-                <span className="text-muted" style={{ fontSize: '0.75rem', display: 'block' }}>
+                <span style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '0.25rem' }}>
                   🎁 Round Recipient (Gets Full Pot)
                 </span>
-                <strong style={{ fontSize: '1.1rem', color: 'var(--text-primary)', display: 'block' }}>
+                <strong style={{ fontSize: '1.2rem', color: '#0F172A', fontWeight: 800, display: 'block', marginBottom: '0.2rem' }}>
                   {currentRound.recipient?.display_name || 'Circle Member'}
                 </strong>
-                <span className="text-cyan" style={{ fontSize: '0.8rem', fontFamily: 'monospace' }}>
+                <span style={{ fontSize: '0.82rem', color: '#0066FF', fontFamily: 'monospace', fontWeight: 600, wordBreak: 'break-all', display: 'block' }}>
                   {currentRound.recipient?.nimiq_address}
                 </span>
 
                 {user && (currentRound.recipient_id === user.id || currentRound.recipient?.nimiq_address === user.nimiq_address) && (
-                  <div style={{ marginTop: '0.65rem', background: 'rgba(5, 213, 170, 0.15)', border: '1px solid var(--accent-cyan)', padding: '0.65rem', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: 'var(--accent-cyan)', fontWeight: 700, textAlign: 'center' }}>
+                  <div style={{
+                    marginTop: '0.85rem',
+                    background: '#ECFDF5',
+                    border: '1px solid #10B981',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '10px',
+                    fontSize: '0.88rem',
+                    color: '#065F46',
+                    fontWeight: 700,
+                    textAlign: 'center',
+                    lineHeight: 1.5
+                  }}>
                     🎉 You are the recipient for this round! You will receive the gathered pot directly to your wallet.
                   </div>
                 )}
@@ -717,27 +761,60 @@ export default function CircleDetailPage() {
             </div>
 
             {/* Round Contributions Tracker */}
-            <div className="glass-card" style={{ marginBottom: '1.25rem' }}>
-              <h4 style={{ fontSize: '1rem', marginBottom: '0.85rem' }}>
+            <div className="glass-card" style={{
+              background: '#FFFFFF',
+              border: '1.5px solid #E2E8F0',
+              borderRadius: '16px',
+              padding: '1.5rem',
+              boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+              marginBottom: '1.25rem'
+            }}>
+              <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', marginBottom: '1rem' }}>
                 Contributions Status ({currentRound.contributions?.filter(c => c.status === 'CONFIRMED').length || 0} / {circle.max_members - 1})
               </h4>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {currentRound.contributions?.map(contrib => (
-                  <div key={contrib.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem', background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-sm)' }}>
+                  <div key={contrib.id} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.85rem 1rem',
+                    background: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '12px'
+                  }}>
                     <div>
-                      <strong style={{ fontSize: '0.9rem', display: 'block' }}>{contrib.contributor?.display_name || 'Member'}</strong>
-                      <span className="text-muted" style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>
-                        {contrib.contributor?.nimiq_address.slice(0, 10)}...
+                      <strong style={{ fontSize: '0.95rem', color: '#0F172A', fontWeight: 700, display: 'block' }}>
+                        {contrib.contributor?.display_name || 'Member'}
+                      </strong>
+                      <span style={{ fontSize: '0.78rem', color: '#64748B', fontFamily: 'monospace', fontWeight: 500 }}>
+                        {contrib.contributor?.nimiq_address ? `${contrib.contributor.nimiq_address.slice(0, 10)}...` : 'Nimiq Wallet'}
                       </span>
                     </div>
 
                     {contrib.status === 'CONFIRMED' ? (
-                      <span className="badge badge-active" style={{ fontSize: '0.7rem' }}>
+                      <span style={{
+                        background: '#ECFDF5',
+                        color: '#059669',
+                        border: '1px solid #A7F3D0',
+                        padding: '0.3rem 0.65rem',
+                        borderRadius: '9999px',
+                        fontSize: '0.75rem',
+                        fontWeight: 800
+                      }}>
                         ✓ Paid
                       </span>
                     ) : (
-                      <span className="badge badge-forming" style={{ fontSize: '0.7rem' }}>
+                      <span style={{
+                        background: '#FEF3C7',
+                        color: '#B45309',
+                        border: '1px solid #FDE68A',
+                        padding: '0.3rem 0.65rem',
+                        borderRadius: '9999px',
+                        fontSize: '0.75rem',
+                        fontWeight: 800
+                      }}>
                         Pending
                       </span>
                     )}

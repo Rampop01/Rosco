@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Header } from '../../components/Header';
 import { createCircle } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
+import { addNotification } from '../../lib/notifications';
 
 export default function CreateCirclePage() {
   const router = useRouter();
@@ -55,6 +56,15 @@ export default function CreateCirclePage() {
       if (typeof window !== 'undefined') {
         localStorage.setItem('rosco_creator_' + circle.id, 'true');
       }
+
+      // Trigger in-app notification for circle creation
+      addNotification({
+        title: 'Circle Created 🎉',
+        message: `Your savings circle "${circle.name}" has been created! Share the invite link to add members.`,
+        type: 'system',
+        link: `/circle/${circle.id}`,
+        circle_id: circle.id,
+      });
 
       router.push(`/circle/${circle.id}`);
     } catch (err: any) {
