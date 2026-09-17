@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@nimiq/core": "^2.21.0",
     "@nimiq/hub-api": "^1.15.0",
     "@nimiq/mini-app-sdk": "^0.1.0",
     "lucide-react": "^0.446.0",

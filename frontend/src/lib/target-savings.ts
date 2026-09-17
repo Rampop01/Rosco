@@ -128,14 +128,28 @@ export function depositToPersonalGoal(
   return goal;
 }
 
-export function withdrawFromPersonalGoal(goalId: string, amount?: number): PersonalGoal {
+export interface WithdrawalReceipt {
+  requestedAmount: number;
+  feePercent: number;
+  feeAmount: number;
+  netPayoutAmount: number;
+  isEarlyExit: boolean;
+  goal: PersonalGoal;
+}
+
+export function withdrawFromPersonalGoal(goalId: string, amount?: number): WithdrawalReceipt {
   const goals = getPersonalGoals();
   const goal = goals.find(g => g.id === goalId);
   if (!goal) {
     throw new Error('Personal goal not found');
   }
 
-  const withdrawAmount = amount !== undefined ? amount : goal.current_amount;
+  const withdrawAmount = amount !== undefined ? Math.min(amount, goal.current_amount) : goal.current_amount;
+  const isEarlyExit = !goal.is_completed && goal.current_amount < goal.target_amount;
+  const feePercent = isEarlyExit ? 10 : 0;
+  const feeAmount = isEarlyExit ? Math.round(withdrawAmount * 0.10 * 100) / 100 : 0;
+  const netPayoutAmount = Math.max(0, Math.round((withdrawAmount - feeAmount) * 100) / 100);
+
   goal.current_amount = Math.max(0, Math.round((goal.current_amount - withdrawAmount) * 100) / 100);
   if (goal.current_amount < goal.target_amount) {
     goal.is_completed = false;
@@ -145,11 +159,20 @@ export function withdrawFromPersonalGoal(goalId: string, amount?: number): Perso
     id: `wdr_${Date.now()}`,
     amount: -withdrawAmount,
     date: new Date().toISOString(),
-    note: 'Withdrawal from vault',
+    note: isEarlyExit 
+      ? `Early withdrawal (-${feePercent}% fee: ${feeAmount} NIM, net: ${netPayoutAmount} NIM)`
+      : 'Target achieved withdrawal (100% payout)',
   });
 
   savePersonalGoals(goals);
-  return goal;
+  return {
+    requestedAmount: withdrawAmount,
+    feePercent,
+    feeAmount,
+    netPayoutAmount,
+    isEarlyExit,
+    goal,
+  };
 }
 
 export function deletePersonalGoal(goalId: string): void {

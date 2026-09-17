@@ -12,7 +12,7 @@ import {
 import { requestPayment } from '../lib/nimiq-pay';
 import { CountdownTimer } from './CountdownTimer';
 import { addNotification } from '../lib/notifications';
-import { Plus, Target, CheckCircle2, Trash2, ArrowUpRight, ArrowDownLeft, Clock, Lock } from 'lucide-react';
+import { Plus, Target, CheckCircle2, Trash2, ArrowUpRight, ArrowDownLeft, Clock, Lock, AlertTriangle } from 'lucide-react';
 
 interface TargetSavingsViewProps {
   userId: string;
@@ -198,7 +198,17 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
     e.preventDefault();
     if (!activeWithdrawGoal) return;
     const amt = withdrawAmount ? parseFloat(withdrawAmount) : undefined;
-    withdrawFromPersonalGoal(activeWithdrawGoal.id, amt);
+    const receipt = withdrawFromPersonalGoal(activeWithdrawGoal.id, amt);
+
+    addNotification({
+      title: receipt.isEarlyExit ? 'Target Savings Early Exit ⚠️' : 'Target Savings Withdrawn 💸',
+      message: receipt.isEarlyExit
+        ? `Withdrew ${receipt.netPayoutAmount} NIM from "${activeWithdrawGoal.title}" (10% commitment fee applied: ${receipt.feeAmount} NIM).`
+        : `Successfully withdrew ${receipt.netPayoutAmount} NIM from "${activeWithdrawGoal.title}" (0% fee).`,
+      type: 'payment',
+      amount: receipt.netPayoutAmount
+    });
+
     setWithdrawAmount('');
     setActiveWithdrawGoal(null);
     loadGoals();
@@ -814,39 +824,143 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
               </button>
             </div>
 
-            <div style={{ background: '#F8FAFC', padding: '0.85rem', borderRadius: '12px', marginBottom: '1.25rem', border: '1px solid #E2E8F0' }}>
-              <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'block' }}>Available Balance</span>
-              <strong style={{ fontSize: '1.3rem', color: 'var(--primary-blue)', fontFamily: 'monospace' }}>
-                {activeWithdrawGoal.current_amount.toLocaleString()} NIM
-              </strong>
-            </div>
+            {(() => {
+              const withdrawGross = withdrawAmount 
+                ? Math.min(parseFloat(withdrawAmount) || 0, activeWithdrawGoal.current_amount) 
+                : activeWithdrawGoal.current_amount;
+              const isEarlyExit = !activeWithdrawGoal.is_completed && activeWithdrawGoal.current_amount < activeWithdrawGoal.target_amount;
+              const fee10Percent = isEarlyExit ? Math.round(withdrawGross * 0.10 * 100) / 100 : 0;
+              const netPayout = Math.max(0, Math.round((withdrawGross - fee10Percent) * 100) / 100);
 
-            <form onSubmit={handleWithdraw}>
-              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <label className="form-label">Withdrawal Amount (NIM)</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  placeholder={`Max: ${activeWithdrawGoal.current_amount}`}
-                  min="0.1"
-                  max={activeWithdrawGoal.current_amount}
-                  step="any"
-                  value={withdrawAmount}
-                  onChange={e => setWithdrawAmount(e.target.value)}
-                />
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'block' }}>
-                  Leave blank to withdraw entire balance.
-                </span>
-              </div>
+              return (
+                <div>
+                  <div style={{ background: '#F8FAFC', padding: '0.85rem', borderRadius: '12px', marginBottom: '1.25rem', border: '1px solid #E2E8F0' }}>
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'block' }}>Available Saved Balance</span>
+                    <strong style={{ fontSize: '1.3rem', color: 'var(--primary-blue)', fontFamily: 'monospace' }}>
+                      {activeWithdrawGoal.current_amount.toLocaleString()} NIM
+                    </strong>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
+                      Target: {activeWithdrawGoal.target_amount.toLocaleString()} NIM
+                    </span>
+                  </div>
 
-              <button
-                type="submit"
-                className="btn-primary"
-                style={{ width: '100%', padding: '0.85rem', fontSize: '1rem', fontWeight: 800, background: '#10B981' }}
-              >
-                Withdraw Funds
-              </button>
-            </form>
+                  <form onSubmit={handleWithdraw}>
+                    <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                      <label className="form-label">Withdrawal Amount (NIM)</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        placeholder={`Max: ${activeWithdrawGoal.current_amount}`}
+                        min="0.1"
+                        max={activeWithdrawGoal.current_amount}
+                        step="any"
+                        value={withdrawAmount}
+                        onChange={e => setWithdrawAmount(e.target.value)}
+                      />
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'block' }}>
+                        Leave blank to withdraw entire balance ({activeWithdrawGoal.current_amount} NIM).
+                      </span>
+                    </div>
+
+                    {/* Commitment Fee Notice vs. Completed Goal Payout */}
+                    {isEarlyExit ? (
+                      <div style={{
+                        background: 'rgba(239, 68, 68, 0.06)',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        borderRadius: '12px',
+                        padding: '0.85rem 1rem',
+                        marginBottom: '1.25rem'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#DC2626', fontWeight: 700, fontSize: '0.88rem' }}>
+                          <AlertTriangle style={{ width: '16px', height: '16px' }} />
+                          <span>Early Exit Commitment Penalty (10%)</span>
+                        </div>
+                        <p style={{ fontSize: '0.8rem', color: '#475569', margin: '0.35rem 0 0.75rem', lineHeight: 1.4 }}>
+                          To keep you committed to your savings target of <strong>{activeWithdrawGoal.target_amount.toLocaleString()} NIM</strong>, stopping and withdrawing early incurs a 10% commitment charge. Reach your target to withdraw <strong>100% with 0% fee</strong>!
+                        </p>
+
+                        <div style={{ background: '#FFFFFF', borderRadius: '8px', padding: '0.65rem 0.85rem', border: '1px solid #E2E8F0', fontSize: '0.82rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>Gross Withdrawal:</span>
+                            <strong>{withdrawGross.toLocaleString()} NIM</strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem', color: '#DC2626' }}>
+                            <span>Commitment Fee (10%):</span>
+                            <span>-{fee10Percent.toLocaleString()} NIM</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #E2E8F0', paddingTop: '0.35rem', fontWeight: 800, color: '#0F172A' }}>
+                            <span>Net Payout to Your Wallet:</span>
+                            <span style={{ color: '#0066FF', fontSize: '0.95rem' }}>{netPayout.toLocaleString()} NIM</span>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '1rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => setActiveWithdrawGoal(null)}
+                            className="btn-primary"
+                            style={{
+                              padding: '0.8rem',
+                              fontSize: '0.92rem',
+                              fontWeight: 700,
+                              background: '#0066FF',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            Keep Saving (Reach Target for 100% Payout)
+                          </button>
+
+                          <button
+                            type="submit"
+                            style={{
+                              padding: '0.75rem',
+                              fontSize: '0.85rem',
+                              fontWeight: 700,
+                              background: 'transparent',
+                              color: '#DC2626',
+                              border: '1px solid #FCA5A5',
+                              borderRadius: '12px',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            Stop Goal & Withdraw Early ({netPayout.toLocaleString()} NIM net)
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{
+                          background: 'rgba(16, 185, 129, 0.1)',
+                          border: '1px solid #10B981',
+                          borderRadius: '12px',
+                          padding: '0.85rem 1rem',
+                          marginBottom: '1.25rem',
+                          color: '#065F46'
+                        }}>
+                          <strong style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            🎉 Goal Completed!
+                          </strong>
+                          <p style={{ fontSize: '0.8rem', marginTop: '0.25rem', color: '#047857' }}>
+                            Congratulations! You reached your savings target. You receive 100% of your funds ({withdrawGross.toLocaleString()} NIM) with zero fees.
+                          </p>
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="btn-primary"
+                          style={{ width: '100%', padding: '0.85rem', fontSize: '1rem', fontWeight: 800, background: '#10B981' }}
+                        >
+                          Withdraw Full Savings ({withdrawGross.toLocaleString()} NIM)
+                        </button>
+                      </div>
+                    )}
+                  </form>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

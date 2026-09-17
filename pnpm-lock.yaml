@@ -66,6 +66,9 @@ importers:
 
   frontend:
     dependencies:
+      '@nimiq/core':
+        specifier: ^2.21.0
+        version: 2.21.0(vite@8.3.0(@types/node@20.19.43)(esbuild@0.28.2)(tsx@4.23.13))
       '@nimiq/hub-api':
         specifier: ^1.15.0
         version: 1.15.0(vite@8.3.0(@types/node@20.19.43)(esbuild@0.28.2)(tsx@4.23.13))
