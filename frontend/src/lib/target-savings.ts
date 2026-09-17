@@ -134,10 +134,15 @@ export interface WithdrawalReceipt {
   feeAmount: number;
   netPayoutAmount: number;
   isEarlyExit: boolean;
+  txHash?: string;
   goal: PersonalGoal;
 }
 
-export function withdrawFromPersonalGoal(goalId: string, amount?: number): WithdrawalReceipt {
+export function withdrawFromPersonalGoal(
+  goalId: string, 
+  amount?: number, 
+  txHash?: string
+): WithdrawalReceipt {
   const goals = getPersonalGoals();
   const goal = goals.find(g => g.id === goalId);
   if (!goal) {
@@ -159,6 +164,7 @@ export function withdrawFromPersonalGoal(goalId: string, amount?: number): Withd
     id: `wdr_${Date.now()}`,
     amount: -withdrawAmount,
     date: new Date().toISOString(),
+    tx_hash: txHash,
     note: isEarlyExit 
       ? `Early withdrawal (-${feePercent}% fee: ${feeAmount} NIM, net: ${netPayoutAmount} NIM)`
       : 'Target achieved withdrawal (100% payout)',
@@ -171,6 +177,7 @@ export function withdrawFromPersonalGoal(goalId: string, amount?: number): Withd
     feeAmount,
     netPayoutAmount,
     isEarlyExit,
+    txHash,
     goal,
   };
 }

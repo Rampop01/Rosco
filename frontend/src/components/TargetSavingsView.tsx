@@ -54,6 +54,8 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
 
   // Form state for withdrawal
   const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
 
   useEffect(() => {
     loadGoals();
@@ -194,24 +196,75 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
     }
   };
 
-  const handleWithdraw = (e: React.FormEvent) => {
+  const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeWithdrawGoal) return;
-    const amt = withdrawAmount ? parseFloat(withdrawAmount) : undefined;
-    const receipt = withdrawFromPersonalGoal(activeWithdrawGoal.id, amt);
+    setWithdrawError(null);
 
-    addNotification({
-      title: receipt.isEarlyExit ? 'Target Savings Early Exit ⚠️' : 'Target Savings Withdrawn 💸',
-      message: receipt.isEarlyExit
-        ? `Withdrew ${receipt.netPayoutAmount} NIM from "${activeWithdrawGoal.title}" (10% commitment fee applied: ${receipt.feeAmount} NIM).`
-        : `Successfully withdrew ${receipt.netPayoutAmount} NIM from "${activeWithdrawGoal.title}" (0% fee).`,
-      type: 'payment',
-      amount: receipt.netPayoutAmount
-    });
+    if (!userAddress) {
+      setWithdrawError('Please connect your Nimiq wallet to receive your automatic payout.');
+      return;
+    }
 
-    setWithdrawAmount('');
-    setActiveWithdrawGoal(null);
-    loadGoals();
+    const withdrawGross = withdrawAmount 
+      ? Math.min(parseFloat(withdrawAmount) || 0, activeWithdrawGoal.current_amount) 
+      : activeWithdrawGoal.current_amount;
+    const isEarlyExit = !activeWithdrawGoal.is_completed && activeWithdrawGoal.current_amount < activeWithdrawGoal.target_amount;
+    const fee10Percent = isEarlyExit ? Math.round(withdrawGross * 0.10 * 100) / 100 : 0;
+    const netPayout = Math.max(0, Math.round((withdrawGross - fee10Percent) * 100) / 100);
+
+    if (netPayout <= 0) {
+      setWithdrawError('Payout amount must be greater than 0 NIM');
+      return;
+    }
+
+    setIsWithdrawing(true);
+
+    try {
+      // Call automated vault payout API using backend vault mnemonic
+      const res = await fetch('/api/target-savings/withdraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipientAddress: userAddress,
+          amount: netPayout,
+          grossAmount: withdrawGross,
+          feeAmount: fee10Percent,
+          goalId: activeWithdrawGoal.id,
+          goalTitle: activeWithdrawGoal.title,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to process automatic payout from vault');
+      }
+
+      const receipt = withdrawFromPersonalGoal(
+        activeWithdrawGoal.id, 
+        withdrawGross, 
+        data.txHash
+      );
+
+      const txSnippet = data.txHash ? ` (Tx: ${data.txHash.slice(0, 8)}...)` : '';
+      addNotification({
+        title: receipt.isEarlyExit ? 'Target Savings Early Exit ⚠️' : 'Target Savings Payout Sent! 💸',
+        message: receipt.isEarlyExit
+          ? `Withdrew ${receipt.netPayoutAmount} NIM to your wallet (${receipt.feeAmount} NIM commitment fee applied).${txSnippet}`
+          : `Sent full ${receipt.netPayoutAmount} NIM payout to your wallet (0% fee).${txSnippet}`,
+        type: 'payment',
+        amount: receipt.netPayoutAmount
+      });
+
+      setWithdrawAmount('');
+      setActiveWithdrawGoal(null);
+      loadGoals();
+    } catch (err: any) {
+      console.error('Withdrawal error:', err);
+      setWithdrawError(err.message || 'Failed to process automatic payout');
+    } finally {
+      setIsWithdrawing(false);
+    }
   };
 
   const handleDelete = (goalId: string) => {
@@ -835,14 +888,38 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
               return (
                 <div>
                   <div style={{ background: '#F8FAFC', padding: '0.85rem', borderRadius: '12px', marginBottom: '1.25rem', border: '1px solid #E2E8F0' }}>
-                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'block' }}>Available Saved Balance</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Available Saved Balance</span>
+                      <span style={{ fontSize: '0.73rem', color: '#0066FF', fontWeight: 700, background: 'rgba(0, 102, 255, 0.08)', padding: '0.2rem 0.5rem', borderRadius: '6px' }}>
+                        ⚡ Auto-Payout Enabled
+                      </span>
+                    </div>
                     <strong style={{ fontSize: '1.3rem', color: 'var(--primary-blue)', fontFamily: 'monospace' }}>
                       {activeWithdrawGoal.current_amount.toLocaleString()} NIM
                     </strong>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
-                      Target: {activeWithdrawGoal.target_amount.toLocaleString()} NIM
-                    </span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.4rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                      <span>Target: {activeWithdrawGoal.target_amount.toLocaleString()} NIM</span>
+                      {userAddress && (
+                        <span title={userAddress} style={{ fontFamily: 'monospace', fontSize: '0.74rem', color: '#475569' }}>
+                          Payout to: {userAddress.slice(0, 9)}...{userAddress.slice(-4)}
+                        </span>
+                      )}
+                    </div>
                   </div>
+
+                  {withdrawError && (
+                    <div style={{
+                      background: 'rgba(239, 68, 68, 0.08)',
+                      color: '#DC2626',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '10px',
+                      fontSize: '0.82rem',
+                      marginBottom: '1rem'
+                    }}>
+                      ⚠️ {withdrawError}
+                    </div>
+                  )}
 
                   <form onSubmit={handleWithdraw}>
                     <div className="form-group" style={{ marginBottom: '1.25rem' }}>
@@ -856,6 +933,7 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
                         step="any"
                         value={withdrawAmount}
                         onChange={e => setWithdrawAmount(e.target.value)}
+                        disabled={isWithdrawing}
                       />
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'block' }}>
                         Leave blank to withdraw entire balance ({activeWithdrawGoal.current_amount} NIM).
@@ -897,8 +975,9 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '1rem' }}>
                           <button
                             type="button"
-                            onClick={() => setActiveWithdrawGoal(null)}
+                            onClick={() => { setActiveWithdrawGoal(null); setWithdrawError(null); }}
                             className="btn-primary"
+                            disabled={isWithdrawing}
                             style={{
                               padding: '0.8rem',
                               fontSize: '0.92rem',
@@ -914,19 +993,25 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
 
                           <button
                             type="submit"
+                            disabled={isWithdrawing}
                             style={{
                               padding: '0.75rem',
                               fontSize: '0.85rem',
                               fontWeight: 700,
-                              background: 'transparent',
-                              color: '#DC2626',
+                              background: isWithdrawing ? '#F1F5F9' : 'transparent',
+                              color: isWithdrawing ? '#94A3B8' : '#DC2626',
                               border: '1px solid #FCA5A5',
                               borderRadius: '12px',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s ease'
+                              cursor: isWithdrawing ? 'not-allowed' : 'pointer',
+                              transition: 'all 0.2s ease',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
                             }}
                           >
-                            Stop Goal & Withdraw Early ({netPayout.toLocaleString()} NIM net)
+                            {isWithdrawing 
+                              ? 'Sending Automatic Payout from Vault...' 
+                              : `Stop Goal & Withdraw Early (${netPayout.toLocaleString()} NIM net)`}
                           </button>
                         </div>
                       </div>
@@ -951,9 +1036,23 @@ export const TargetSavingsView: React.FC<TargetSavingsViewProps> = ({ userId, us
                         <button
                           type="submit"
                           className="btn-primary"
-                          style={{ width: '100%', padding: '0.85rem', fontSize: '1rem', fontWeight: 800, background: '#10B981' }}
+                          disabled={isWithdrawing}
+                          style={{
+                            width: '100%',
+                            padding: '0.85rem',
+                            fontSize: '1rem',
+                            fontWeight: 800,
+                            background: '#10B981',
+                            cursor: isWithdrawing ? 'not-allowed' : 'pointer',
+                            opacity: isWithdrawing ? 0.7 : 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
                         >
-                          Withdraw Full Savings ({withdrawGross.toLocaleString()} NIM)
+                          {isWithdrawing 
+                            ? 'Sending Automatic Payout from Vault...' 
+                            : `Withdraw Full Savings (${withdrawGross.toLocaleString()} NIM)`}
                         </button>
                       </div>
                     )}
