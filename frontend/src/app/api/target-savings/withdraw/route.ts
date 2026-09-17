@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const RPC_URL = process.env.NIMIQ_RPC_URL || 'https://rpc.nimiqwatch.com';
-const NETWORK_ID = 42; // Nimiq PoS Mainnet (Albatross)
+const DEFAULT_MAINNET_RPC = 'https://rpc.nimiqwatch.com';
+const DEFAULT_TESTNET_RPC = 'https://rpc.pos.nimiq-testnet.com';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { recipientAddress, amount, grossAmount, feeAmount, goalId, goalTitle } = body;
+    const { recipientAddress, amount, grossAmount, feeAmount, goalId, goalTitle, network } = body;
+
+    // Detect network: 'testnet' (NetworkId 1) or 'mainnet' (NetworkId 42)
+    const requestedNetwork = network || process.env.NIMIQ_NETWORK || process.env.NEXT_PUBLIC_NIMIQ_NETWORK || 'mainnet';
+    const isTestnet = requestedNetwork.toLowerCase().includes('test');
+    const networkId = isTestnet ? 1 : 42;
+    const rpcUrl = process.env.NIMIQ_RPC_URL || (isTestnet ? DEFAULT_TESTNET_RPC : DEFAULT_MAINNET_RPC);
 
     if (!recipientAddress || typeof recipientAddress !== 'string') {
       return NextResponse.json({ error: 'Valid recipient Nimiq address is required' }, { status: 400 });
@@ -27,7 +33,7 @@ export async function POST(req: NextRequest) {
     // Dynamically import @nimiq/core to ensure server-side wasm compatibility
     const N = await import('@nimiq/core');
 
-    // 1. Derive Vault KeyPair from Mnemonic
+    // 1. Derive Vault KeyPair from Mnemonic (BIP39 + Ed25519 is identical on Mainnet & Testnet)
     const words = seedWords.trim().split(/\s+/);
     const extPrivKey = N.MnemonicUtils.mnemonicToExtendedPrivateKey(words);
     const derived = extPrivKey.derivePath("m/44'/242'/0'/0'");
@@ -52,11 +58,11 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Query current block height and vault balance from Nimiq RPC
-    let blockNumber = 61830000;
+    let blockNumber = isTestnet ? 1000 : 61830000;
     let vaultBalanceLuna = BigInt(0);
 
     try {
-      const blockRes = await fetch(RPC_URL, {
+      const blockRes = await fetch(rpcUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getBlockNumber', params: [] }),
@@ -68,7 +74,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const accRes = await fetch(RPC_URL, {
+      const accRes = await fetch(rpcUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'getAccountByAddress', params: [vaultAddressFriendly] }),
@@ -80,10 +86,10 @@ export async function POST(req: NextRequest) {
         }
       }
     } catch (rpcErr) {
-      console.warn('[Rosco Vault] RPC query failed, using fallback parameters:', rpcErr);
+      console.warn(`[Rosco Vault] RPC query failed on ${rpcUrl}, using fallback parameters:`, rpcErr);
     }
 
-    // 4. Build and sign the transaction
+    // 4. Build and sign the transaction with the appropriate Network ID
     const lunaAmount = BigInt(Math.round(payoutAmount * 100000));
     const tx = N.TransactionBuilder.newBasic(
       vaultAddress,
@@ -91,7 +97,7 @@ export async function POST(req: NextRequest) {
       lunaAmount,
       BigInt(0), // 0 fee for basic tx
       blockNumber,
-      NETWORK_ID
+      networkId
     );
 
     tx.sign(vaultKey, undefined);
@@ -105,7 +111,7 @@ export async function POST(req: NextRequest) {
 
     if (vaultBalanceLuna >= lunaAmount) {
       try {
-        const broadcastRes = await fetch(RPC_URL, {
+        const broadcastRes = await fetch(rpcUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -131,13 +137,15 @@ export async function POST(req: NextRequest) {
         broadcastError = err.message || 'Network error broadcasting transaction';
       }
     } else {
-      broadcastError = `Vault balance (${Number(vaultBalanceLuna) / 100000} NIM) is insufficient for on-chain payout of ${payoutAmount} NIM`;
+      broadcastError = `Vault balance (${Number(vaultBalanceLuna) / 100000} NIM on ${isTestnet ? 'Testnet' : 'Mainnet'}) is insufficient for on-chain payout of ${payoutAmount} NIM`;
     }
 
     return NextResponse.json({
       success: true,
       txHash: broadcastHash,
       onChain: onChainSuccess,
+      network: isTestnet ? 'testnet' : 'mainnet',
+      networkId,
       warning: onChainSuccess ? null : broadcastError,
       payoutAmount,
       grossAmount: grossAmount ?? payoutAmount,
