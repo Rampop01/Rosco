@@ -11,9 +11,19 @@ export async function POST(
   }
 
   const clean = (a: string) => (a ? a.replace(/\s+/g, '').toUpperCase() : '');
-  circle.memberships = (circle.memberships || []).filter(
-    (m: any) => m.id !== params.mid && clean(m.user_id) !== clean(params.mid)
+  const membership = (circle.memberships || []).find(
+    (m: any) => m.id === params.mid || clean(m.user_id) === clean(params.mid)
   );
+
+  if (membership) {
+    membership.status = 'REJECTED';
+    membership.decided_at = new Date().toISOString();
+  } else {
+    // If not found by id, filter out any matches
+    circle.memberships = (circle.memberships || []).filter(
+      (m: any) => m.id !== params.mid && clean(m.user_id) !== clean(params.mid)
+    );
+  }
   saveCircle(circle);
 
   return NextResponse.json({ success: true, message: 'Request rejected' });

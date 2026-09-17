@@ -159,7 +159,7 @@ export default function CircleDetailPage() {
         }
       }
 
-      // Check if current user is a member whose request was approved
+      // Check if current user is a member whose request was approved or rejected
       if (!isOrgCheck && activeWallet) {
         const userMem = data.memberships?.find((m: any) => clean(m.user_id || m.user?.nimiq_address) === activeWallet);
         if (userMem?.status === 'APPROVED') {
@@ -173,6 +173,18 @@ export default function CircleDetailPage() {
               circle_id: circleId
             });
             localStorage.setItem(approvedNotifKey, 'true');
+          }
+        } else if (userMem?.status === 'REJECTED') {
+          const rejectedNotifKey = `rosco_notified_rejected_${circleId}`;
+          if (typeof window !== 'undefined' && !localStorage.getItem(rejectedNotifKey)) {
+            addNotification({
+              title: 'Join Request Declined',
+              message: `Your request to join ${data.name} was not accepted by the organizer.`,
+              type: 'system',
+              link: `/circle/${circleId}`,
+              circle_id: circleId
+            });
+            localStorage.setItem(rejectedNotifKey, 'true');
           }
         }
       }
@@ -423,6 +435,15 @@ export default function CircleDetailPage() {
                 <h4 style={{ color: 'var(--status-pending)' }}>⏳ Request Pending</h4>
                 <p className="text-muted" style={{ fontSize: '0.85rem', marginTop: '0.4rem' }}>
                   The circle organizer will review your request shortly.
+                </p>
+              </div>
+            )}
+
+            {myMembership?.status === 'REJECTED' && !isOrganizer && (
+              <div className="glass-card" style={{ textAlign: 'center', marginBottom: '1.25rem', borderColor: '#EF4444' }}>
+                <h4 style={{ color: '#EF4444' }}>❌ Request Declined</h4>
+                <p className="text-muted" style={{ fontSize: '0.85rem', marginTop: '0.4rem' }}>
+                  The circle organizer was unable to accept your request for this circle.
                 </p>
               </div>
             )}
