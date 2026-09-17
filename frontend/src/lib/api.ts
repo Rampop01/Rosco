@@ -124,10 +124,38 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
+  let response: Response | null = null;
+  let lastError: any = null;
+
+  // 1. Try configured API_BASE
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch (err) {
+    lastError = err;
+  }
+
+  // 2. If external API failed or returned 404/5xx, fall back to internal Next.js /api
+  if (!response || (!response.ok && API_BASE !== '/api' && (response.status === 404 || response.status >= 500))) {
+    try {
+      const fallbackUrl = `/api${path}`;
+      const fallbackRes = await fetch(fallbackUrl, {
+        ...options,
+        headers,
+      });
+      if (fallbackRes.ok) {
+        response = fallbackRes;
+      }
+    } catch {
+      // Ignore fallback error, keep initial response or error
+    }
+  }
+
+  if (!response) {
+    throw lastError || new Error(`Network error calling ${path}`);
+  }
 
   const data = await response.json().catch(() => ({}));
 
@@ -378,10 +406,30 @@ export async function joinCircle(circleId: string): Promise<{ id: string; status
 
 export async function getJoinRequests(circleId: string): Promise<JoinRequest[]> {
   try {
-    return await apiFetch<JoinRequest[]>(`/circles/${circleId}/join-requests`);
-  } catch {
-    return [];
+    const res = await apiFetch<JoinRequest[]>(`/circles/${circleId}/join-requests`);
+    if (res && res.length > 0) return res;
+  } catch (e) {
+    console.warn('[Rosco] Failed to fetch join requests from API, checking local store:', e);
   }
+
+  const localCircles = getLocalCircles();
+  const found = localCircles.find(c => c.id === circleId);
+  if (found && found.memberships) {
+    return found.memberships
+      .filter(m => m.status === 'PENDING')
+      .map(m => ({
+        id: m.id,
+        user_id: m.user_id,
+        status: m.status,
+        requested_at: new Date().toISOString(),
+        user: m.user || {
+          id: m.user_id,
+          nimiq_address: m.user_id,
+          display_name: 'Member'
+        }
+      }));
+  }
+  return [];
 }
 
 export async function approveJoinRequest(circleId: string, membershipId: string): Promise<any> {
@@ -471,7 +519,11 @@ export async function getCurrentRound(circleId: string): Promise<{ current_round
   }
 }
 
-export async function getContributionIntent(roundId: string): Promise<PaymentIntent> {
+export async function getContributionIntent(
+  roundId: string,
+  fallbackRecipient?: string,
+  fallbackAmount?: number
+): Promise<PaymentIntent> {
   try {
     return await apiFetch<PaymentIntent>(`/rounds/${roundId}/contributions/intent`, { method: 'POST' });
   } catch (err) {
@@ -487,6 +539,15 @@ export async function getContributionIntent(roundId: string): Promise<PaymentInt
           message: `Rosco: Round ${r.round_number} contribution`,
         };
       }
+    }
+    if (fallbackRecipient && fallbackAmount) {
+      return {
+        recipient_address: fallbackRecipient,
+        amount: fallbackAmount,
+        round_id: roundId,
+        contribution_id: `contrib_${Date.now()}`,
+        message: `Rosco: Round contribution`,
+      };
     }
     throw err;
   }

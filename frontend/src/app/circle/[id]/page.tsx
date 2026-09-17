@@ -119,7 +119,25 @@ export default function CircleDetailPage() {
       const isOrgCheck = activeWallet && orgWallet && activeWallet === orgWallet;
 
       if (isOrgCheck && data.status === 'FORMING') {
-        const requests = await getJoinRequests(circleId);
+        let requests = await getJoinRequests(circleId);
+        if (data.memberships) {
+          const directPending = data.memberships
+            .filter((m: any) => m.status === 'PENDING' && !requests.some(r => r.id === m.id || r.user_id === m.user_id))
+            .map((m: any) => ({
+              id: m.id,
+              user_id: m.user_id,
+              status: m.status,
+              requested_at: new Date().toISOString(),
+              user: m.user || {
+                id: m.user_id,
+                nimiq_address: m.user_id,
+                display_name: 'Member'
+              }
+            }));
+          if (directPending.length > 0) {
+            requests = [...requests, ...directPending];
+          }
+        }
         setJoinRequests(requests);
         const pendingCount = requests.filter(r => r.status === 'PENDING').length;
         const reqKey = `rosco_notified_req_${circleId}_${pendingCount}`;
