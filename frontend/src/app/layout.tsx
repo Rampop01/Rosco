@@ -6,8 +6,13 @@ export const metadata = {
   title: 'Rosco — Rotating Savings & Personal Target Vault (Nimiq Pay)',
   description: 'Non-custodial decentralized rotating savings and solo target vaults powered by Nimiq.',
   icons: {
-    icon: '/rosco_logo.jpg',
-    apple: '/rosco_logo.jpg',
+    icon: [
+      { url: '/favicon.png', type: 'image/png' },
+      { url: '/rosco_logo_icon.jpg' },
+      { url: '/favicon.ico' },
+    ],
+    shortcut: '/favicon.png',
+    apple: '/favicon.png',
   },
 };
 

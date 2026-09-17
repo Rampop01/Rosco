@@ -129,8 +129,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onConnectWallet, isLog
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <nav className="nav-links nav-text-links">
-            <span className="nav-link" onClick={() => scrollToSection('showcase')}>Video Tour</span>
             <span className="nav-link" onClick={() => scrollToSection('products')}>Products</span>
+            <span className="nav-link" onClick={() => scrollToSection('showcase')}>Showcase</span>
             <span className="nav-link" onClick={() => scrollToSection('calculator')}>Calculator</span>
             <span className="nav-link" onClick={() => scrollToSection('faq')}>FAQ</span>
           </nav>
@@ -226,8 +226,76 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onConnectWallet, isLog
         </div>
       </section>
 
+      {/* Products Showcase Grid */}
+      <section id="products" style={{ margin: '6rem 0 5.5rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+          <div className="hero-badge" style={{ marginBottom: '0.6rem' }}>OUR SAVINGS PRODUCTS</div>
+          <h2 style={{ fontSize: '2.4rem', marginBottom: '0.5rem', color: '#0F172A' }}>
+            Products built to help you <span style={{ color: 'var(--primary-blue)' }}>save together</span>
+          </h2>
+          <p className="text-secondary" style={{ fontSize: '1.05rem', maxWidth: '600px', margin: '0 auto' }}>
+            Choose the right rotating circle format for your group, targets, and financial goals.
+          </p>
+        </div>
+
+        <div className="features-grid">
+          {/* Card 1: Rotating Kolo */}
+          <div className="product-card">
+            <img 
+              src="/feature_kolo.jpg" 
+              alt="Rotating Kolo Savings" 
+              style={{ width: '100%', height: '200px', objectFit: 'cover' }} 
+            />
+            <div style={{ padding: '1.75rem' }}>
+              <span className="badge badge-active" style={{ marginBottom: '0.75rem' }}>
+                ROTATING KOLO
+              </span>
+              <h3 style={{ fontSize: '1.3rem', marginBottom: '0.5rem', color: '#0F172A' }}>
+                Rotating Savings Circle
+              </h3>
+              <p className="text-secondary" style={{ fontSize: '0.9rem', lineHeight: '1.6' }}>
+                Traditional ROSCA brought to Nimiq Pay. Members pool fixed contributions on a weekly or monthly schedule and take turns receiving 100% of the pot.
+              </p>
+            </div>
+          </div>
+
+          {/* Card 2: Target Savings */}
+          <div className="product-card">
+            <div style={{
+              width: '100%',
+              height: '200px',
+              background: 'linear-gradient(135deg, #0066FF 0%, #0040A8 100%)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#FFFFFF',
+              gap: '0.5rem'
+            }}>
+              <strong style={{ fontSize: '1.35rem', fontFamily: 'var(--font-heading)', letterSpacing: '-0.02em' }}>
+                Rosco Target Vault
+              </strong>
+              <span style={{ fontSize: '0.8rem', opacity: 0.85, background: 'rgba(255,255,255,0.2)', padding: '0.2rem 0.75rem', borderRadius: '20px' }}>
+                Group Goal Milestone
+              </span>
+            </div>
+            <div style={{ padding: '1.75rem' }}>
+              <span className="badge badge-completed" style={{ marginBottom: '0.75rem' }}>
+                TARGET SAVINGS
+              </span>
+              <h3 style={{ fontSize: '1.3rem', marginBottom: '0.5rem', color: '#0F172A' }}>
+                Target Goals Circle
+              </h3>
+              <p className="text-secondary" style={{ fontSize: '0.9rem', lineHeight: '1.6' }}>
+                Save toward shared milestones — buying equipment, paying rent, holiday trips, or funding projects with trusted friends and family.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Interactive Product Benefit Video & Carousel Showcase */}
-      <section id="showcase" style={{ margin: '5rem 0' }}>
+      <section id="showcase" style={{ margin: '5.5rem 0' }}>
         <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
           <div className="hero-badge" style={{ marginBottom: '0.6rem' }}>INTERACTIVE PRODUCT SHOWCASE</div>
           <h2 style={{ fontSize: '2.4rem', marginBottom: '0.5rem', color: '#0F172A' }}>
@@ -420,76 +488,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onConnectWallet, isLog
         </div>
       </section>
 
-      {/* Products Showcase Grid */}
-      <section id="products" style={{ margin: '4.5rem 0' }}>
-        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
-          <div className="hero-badge" style={{ marginBottom: '0.6rem' }}>OUR SAVINGS PRODUCTS</div>
-          <h2 style={{ fontSize: '2.4rem', marginBottom: '0.5rem', color: '#0F172A' }}>
-            Products built to help you <span style={{ color: 'var(--primary-blue)' }}>save together</span>
-          </h2>
-          <p className="text-secondary" style={{ fontSize: '1.05rem', maxWidth: '600px', margin: '0 auto' }}>
-            Choose the right rotating circle format for your group, targets, and financial goals.
-          </p>
-        </div>
-
-        <div className="features-grid">
-          {/* Card 1: Rotating Kolo */}
-          <div className="product-card">
-            <img 
-              src="/feature_kolo.jpg" 
-              alt="Rotating Kolo Savings" 
-              style={{ width: '100%', height: '200px', objectFit: 'cover' }} 
-            />
-            <div style={{ padding: '1.75rem' }}>
-              <span className="badge badge-active" style={{ marginBottom: '0.75rem' }}>
-                ROTATING KOLO
-              </span>
-              <h3 style={{ fontSize: '1.3rem', marginBottom: '0.5rem', color: '#0F172A' }}>
-                Rotating Savings Circle
-              </h3>
-              <p className="text-secondary" style={{ fontSize: '0.9rem', lineHeight: '1.6' }}>
-                Traditional ROSCA brought to Nimiq Pay. Members pool fixed contributions on a weekly or monthly schedule and take turns receiving 100% of the pot.
-              </p>
-            </div>
-          </div>
-
-          {/* Card 2: Target Savings */}
-          <div className="product-card">
-            <div style={{
-              width: '100%',
-              height: '200px',
-              background: 'linear-gradient(135deg, #0066FF 0%, #0040A8 100%)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#FFFFFF',
-              gap: '0.5rem'
-            }}>
-              <strong style={{ fontSize: '1.35rem', fontFamily: 'var(--font-heading)', letterSpacing: '-0.02em' }}>
-                Rosco Target Vault
-              </strong>
-              <span style={{ fontSize: '0.8rem', opacity: 0.85, background: 'rgba(255,255,255,0.2)', padding: '0.2rem 0.75rem', borderRadius: '20px' }}>
-                Group Goal Milestone
-              </span>
-            </div>
-            <div style={{ padding: '1.75rem' }}>
-              <span className="badge badge-completed" style={{ marginBottom: '0.75rem' }}>
-                TARGET SAVINGS
-              </span>
-              <h3 style={{ fontSize: '1.3rem', marginBottom: '0.5rem', color: '#0F172A' }}>
-                Target Goals Circle
-              </h3>
-              <p className="text-secondary" style={{ fontSize: '0.9rem', lineHeight: '1.6' }}>
-                Save toward shared milestones — buying equipment, paying rent, holiday trips, or funding projects with trusted friends and family.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* Interactive Pot & Savings Calculator */}
-      <section id="calculator" style={{ margin: '5rem 0' }}>
+      <section id="calculator" style={{ margin: '6rem 0 5rem' }}>
         <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
           <div className="hero-badge" style={{ marginBottom: '0.6rem' }}>INTERACTIVE CALCULATOR</div>
           <h2 style={{ fontSize: '2.4rem', marginBottom: '0.5rem', color: '#0F172A' }}>

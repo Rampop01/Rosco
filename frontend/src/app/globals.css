@@ -383,9 +383,9 @@ h1, h2, h3, h4, h5, h6 {
 .hero-grid {
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
-  gap: 3.5rem;
+  gap: 4.5rem;
   align-items: center;
-  padding: 3.5rem 0 4rem;
+  padding: 4.5rem 0 5.5rem;
 }
 
 @media (max-width: 960px) {
