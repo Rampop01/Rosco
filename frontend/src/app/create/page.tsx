@@ -53,10 +53,6 @@ export default function CreateCirclePage() {
         organizer_name: user?.display_name || wallet?.label || 'Organizer',
       });
 
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('rosco_creator_' + circle.id, 'true');
-      }
-
       // Trigger in-app notification for circle creation
       addNotification({
         title: 'Circle Created 🎉',

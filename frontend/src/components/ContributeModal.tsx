@@ -30,8 +30,7 @@ export const ContributeModal: React.FC<ContributeModalProps> = ({
       setErrorMsg(null);
 
       // 1. Fetch payment intent from backend (gets recipient address, amount, message)
-      const fallbackRecipient = round.recipient?.nimiq_address || round.recipient?.id || round.recipient_id || circle.organizer_id || (circle.organizer as any)?.nimiq_address || '';
-      const intent = await getContributionIntent(round.id, fallbackRecipient, circle.contribution_amount);
+      const intent = await getContributionIntent(round.id);
 
       // 2. Trigger Nimiq Pay SDK requestPayment
       const result = await requestPayment({

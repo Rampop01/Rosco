@@ -60,33 +60,6 @@ export default function CircleDetailPage() {
       if (!silent) setLoading(true);
       const data = await getCircle(circleId);
 
-      // Auto-heal dummy address ONLY if the circle was actually created on this device
-      const isCreatorDevice = typeof window !== 'undefined' && localStorage.getItem('rosco_creator_' + circleId) === 'true';
-      const myRealAddr = wallet?.address || user?.nimiq_address || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null);
-      if (isCreatorDevice && myRealAddr && data.organizer_id && data.organizer_id.startsWith('NQ750000000000000000000000000000')) {
-        data.organizer_id = myRealAddr;
-        if (data.organizer) {
-          data.organizer.id = myRealAddr;
-          data.organizer.nimiq_address = myRealAddr;
-          data.organizer.display_name = user?.display_name || wallet?.label || 'Organizer';
-        }
-        if (data.memberships && data.memberships.length > 0 && data.memberships[0].user_id.startsWith('NQ750000000000000000000000000000')) {
-          data.memberships[0].user_id = myRealAddr;
-          if (data.memberships[0].user) {
-            data.memberships[0].user.id = myRealAddr;
-            data.memberships[0].user.nimiq_address = myRealAddr;
-            data.memberships[0].user.display_name = user?.display_name || wallet?.label || 'Organizer';
-          }
-        }
-        try {
-          fetch('/api/circles', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-          }).catch(() => {});
-        } catch {}
-      }
-
       setCircle(data);
 
       if (data.status === 'ACTIVE') {
@@ -178,7 +151,7 @@ export default function CircleDetailPage() {
 
       const activeWallet = clean(wallet?.address || user?.nimiq_address || user?.id || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null));
       const orgWallet = clean(data.organizer_id || data.organizer?.nimiq_address);
-      const isOrgCheck = isCreatorDevice || (activeWallet && orgWallet && activeWallet === orgWallet);
+      const isOrgCheck = activeWallet && orgWallet && activeWallet === orgWallet;
 
       if (data.status === 'FORMING') {
         // Always trust the backend for join requests — do NOT merge local cache
@@ -260,12 +233,8 @@ export default function CircleDetailPage() {
   );
   const orgAddr = clean(circle?.organizer_id || circle?.organizer?.nimiq_address);
 
-  // The organizer is either matching wallet OR the device that created the circle
-  const isCreatorDevice = typeof window !== 'undefined' && circle?.id && localStorage.getItem('rosco_creator_' + circle.id) === 'true';
-  const isOrganizer = !!(
-    isCreatorDevice ||
-    (activeWalletAddr && orgAddr && activeWalletAddr === orgAddr)
-  );
+  // Organizer check: wallet matches stored organizer address
+  const isOrganizer = !!(activeWalletAddr && orgAddr && activeWalletAddr === orgAddr);
 
   // Find all memberships matching this active wallet
   const myMemberships = circle?.memberships?.filter(m => {

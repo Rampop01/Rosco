@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { initNimiqPay, listAccounts, resetWalletAccount, getNativeNimiqPaySDK, NimiqAccount } from '../lib/nimiq-pay';
-import { createSession, getToken, clearToken, User } from '../lib/api';
+import { authenticateUser, getToken, clearToken, User } from '../lib/api';
 
 interface AuthContextType {
   user: User | null;
@@ -78,7 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(fallbackUser);
 
       try {
-        const res = await createSession(primary.address, displayName || primary.label || 'Nimiq Member');
+        const res = await authenticateUser(primary.address, displayName || primary.label || 'Nimiq Member');
         setUser(res.user);
         setTokenState(res.token);
       } catch (apiErr) {
