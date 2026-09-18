@@ -28,7 +28,7 @@ app.get('/api/v1/health', (_req, res) => {
 // Routes
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/circles', circlesRouter);
-app.use('/api/v1/rounds', roundsRouter);
+app.use('/api/v1', roundsRouter);
 app.use('/api/v1/notifications', notificationsRouter);
 
 // Error handling
