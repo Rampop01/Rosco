@@ -658,6 +658,10 @@ export async function advanceCircleRound(circleId: string): Promise<any> {
     const localCircles = getLocalCircles();
     const found = localCircles.find(c => c.id === circleId);
     if (found && found.rounds) {
+      const openRound = found.rounds.find((r: any) => r.status === 'open');
+      if (openRound) {
+        return { success: false, error: 'Current round is still in progress', circle: found, current_round: openRound };
+      }
       const nextRound = found.rounds.find((r: any) => r.status === 'upcoming');
       if (nextRound) {
         nextRound.status = 'open';

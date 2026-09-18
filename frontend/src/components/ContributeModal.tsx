@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { requestPayment } from '../lib/nimiq-pay';
 import { getContributionIntent, confirmContribution, RoundInfo, Circle } from '../lib/api';
 import { addNotification } from '../lib/notifications';
@@ -18,6 +19,7 @@ export const ContributeModal: React.FC<ContributeModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const { user, wallet } = useAuth();
   const [step, setStep] = useState<'review' | 'paying' | 'verifying' | 'success' | 'error'>('review');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
@@ -46,7 +48,7 @@ export const ContributeModal: React.FC<ContributeModalProps> = ({
       setStep('verifying');
 
       // 3. Confirm contribution with backend
-      const myWallet = typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') || '' : '';
+      const myWallet = wallet?.address || user?.nimiq_address || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') || '' : '');
       await confirmContribution(round.id, result.txHash, myWallet);
 
       // 4. Trigger in-app notification

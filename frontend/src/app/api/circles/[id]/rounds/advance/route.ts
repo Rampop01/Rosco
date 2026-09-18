@@ -10,6 +10,11 @@ export async function POST(
     return NextResponse.json({ error: 'Circle has no rounds' }, { status: 400 });
   }
 
+  const openRound = circle.rounds.find((r: any) => r.status === 'open');
+  if (openRound) {
+    return NextResponse.json({ error: 'Current round is still in progress' }, { status: 400 });
+  }
+
   // Find the next upcoming round
   const nextRound = circle.rounds.find((r: any) => r.status === 'upcoming');
   if (!nextRound) {

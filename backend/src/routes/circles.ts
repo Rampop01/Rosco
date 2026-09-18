@@ -520,6 +520,9 @@ circlesRouter.post('/:id/start', authenticate, async (req: Request, res: Respons
     const getNextDueDate = (roundIndex: number): Date => {
       const date = new Date(startDate);
       switch (circle.frequency) {
+        case 'daily':
+          date.setDate(date.getDate() + roundIndex);
+          break;
         case 'weekly':
           date.setDate(date.getDate() + (roundIndex * 7));
           break;
@@ -550,8 +553,8 @@ circlesRouter.post('/:id/start', authenticate, async (req: Request, res: Respons
       circleId,
       roundNumber: index + 1,
       recipientId,
-      dueDate: getNextDueDate(index),
-      status: 'open',
+      dueDate: getNextDueDate(index + 1),
+      status: index === 0 ? 'open' : 'upcoming',
     }));
 
     // Use transaction for atomicity
@@ -570,17 +573,19 @@ circlesRouter.post('/:id/start', authenticate, async (req: Request, res: Respons
       for (const roundData of roundsData) {
         const round = await tx.round.create({ data: roundData });
 
-        // Create contribution rows for each member (except the recipient, per standard ROSCA rules)
-        // Actually, in many ROSCAs everyone contributes including the recipient.
-        // The PRD says "every member is expected to send their contribution" — so all contribute.
-        const contributionRows = approvedMembers.map(member => ({
-          roundId: round.id,
-          contributorId: member.userId,
-          expectedAmount: circle.contributionAmount,
-          status: 'pending',
-        }));
+        // Create contribution rows for each member except the recipient
+        const contributionRows = approvedMembers
+          .filter(member => member.userId !== round.recipientId)
+          .map(member => ({
+            roundId: round.id,
+            contributorId: member.userId,
+            expectedAmount: circle.contributionAmount,
+            status: 'pending',
+          }));
 
-        await tx.contribution.createMany({ data: contributionRows });
+        if (contributionRows.length > 0) {
+          await tx.contribution.createMany({ data: contributionRows });
+        }
       }
     });
 
