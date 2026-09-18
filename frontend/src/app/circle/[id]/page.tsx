@@ -928,7 +928,7 @@ export default function CircleDetailPage() {
                       user?.nimiq_address ||
                       (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null)
                     );
-                    const recWallet = clean(currentRound.recipient_id || currentRound.recipient?.nimiq_address || currentRound.recipient?.id);
+                    const recWallet = clean(currentRound.recipient?.nimiq_address || currentRound.recipient_id || currentRound.recipient?.id);
                     const isRecipient = !!(myWallet && recWallet && myWallet === recWallet);
 
                     const myContrib = currentRound.contributions?.find(c => {

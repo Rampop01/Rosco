@@ -159,6 +159,9 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     try {
       const errBody = await response.json();
       errorMessage = errBody.error || errBody.message || errorMessage;
+      if (errBody.reason) {
+        errorMessage += `: ${errBody.reason}`;
+      }
     } catch {}
     throw new Error(errorMessage);
   }
