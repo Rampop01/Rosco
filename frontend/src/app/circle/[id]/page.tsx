@@ -89,7 +89,7 @@ export default function CircleDetailPage() {
       setCircle(data);
 
       if (data.status === 'ACTIVE') {
-        const activeWalletAddr = clean(wallet?.address || user?.nimiq_address || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null));
+        const activeWalletAddr = clean(wallet?.address || user?.nimiq_address || user?.id || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null));
 
         // Scan all rounds for incoming payments and pot awards to the active user as recipient
         if (activeWalletAddr && data.rounds) {
@@ -175,7 +175,7 @@ export default function CircleDetailPage() {
         }
       }
 
-      const activeWallet = clean(wallet?.address || user?.nimiq_address || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null));
+      const activeWallet = clean(wallet?.address || user?.nimiq_address || user?.id || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null));
       const orgWallet = clean(data.organizer_id || data.organizer?.nimiq_address);
       const isOrgCheck = isCreatorDevice || (activeWallet && orgWallet && activeWallet === orgWallet);
 
@@ -225,8 +225,15 @@ export default function CircleDetailPage() {
 
       // Check if current user is a member whose request was approved or rejected
       if (!isOrgCheck && activeWallet) {
-        const userMem = data.memberships?.find((m: any) => clean(m.user_id || m.user?.nimiq_address) === activeWallet);
-        if ((userMem?.status || '').toUpperCase() === 'APPROVED') {
+        const isUserApproved = data.memberships?.some(
+          (m: any) => (
+            clean(m.user_id) === activeWallet ||
+            clean(m.user?.nimiq_address) === activeWallet ||
+            clean(m.user?.id) === activeWallet
+          ) && (m.status || '').toUpperCase() === 'APPROVED'
+        );
+
+        if (isUserApproved) {
           const approvedNotifKey = `rosco_notified_approved_${circleId}`;
           if (typeof window !== 'undefined' && !localStorage.getItem(approvedNotifKey)) {
             addNotification({
@@ -238,17 +245,26 @@ export default function CircleDetailPage() {
             });
             localStorage.setItem(approvedNotifKey, 'true');
           }
-        } else if ((userMem?.status || '').toUpperCase() === 'REJECTED') {
-          const rejectedNotifKey = `rosco_notified_rejected_${circleId}`;
-          if (typeof window !== 'undefined' && !localStorage.getItem(rejectedNotifKey)) {
-            addNotification({
-              title: 'Join Request Declined',
-              message: `Your request to join ${data.name} was not accepted by the organizer.`,
-              type: 'system',
-              link: `/circle/${circleId}`,
-              circle_id: circleId
-            });
-            localStorage.setItem(rejectedNotifKey, 'true');
+        } else {
+          const isUserRejected = data.memberships?.some(
+            (m: any) => (
+              clean(m.user_id) === activeWallet ||
+              clean(m.user?.nimiq_address) === activeWallet ||
+              clean(m.user?.id) === activeWallet
+            ) && (m.status || '').toUpperCase() === 'REJECTED'
+          );
+          if (isUserRejected) {
+            const rejectedNotifKey = `rosco_notified_rejected_${circleId}`;
+            if (typeof window !== 'undefined' && !localStorage.getItem(rejectedNotifKey)) {
+              addNotification({
+                title: 'Join Request Declined',
+                message: `Your request to join ${data.name} was not accepted by the organizer.`,
+                type: 'system',
+                link: `/circle/${circleId}`,
+                circle_id: circleId
+              });
+              localStorage.setItem(rejectedNotifKey, 'true');
+            }
           }
         }
       }
@@ -263,6 +279,7 @@ export default function CircleDetailPage() {
   const activeWalletAddr = clean(
     wallet?.address ||
     user?.nimiq_address ||
+    user?.id ||
     (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null)
   );
   const orgAddr = clean(circle?.organizer_id || circle?.organizer?.nimiq_address);
@@ -274,15 +291,27 @@ export default function CircleDetailPage() {
     (activeWalletAddr && orgAddr && activeWalletAddr === orgAddr)
   );
 
-  // Find membership
-  const myMembership = circle?.memberships?.find(m => {
-    const memberAddr = clean(m.user_id || m.user?.nimiq_address);
-    return activeWalletAddr && memberAddr && activeWalletAddr === memberAddr;
-  });
+  // Find all memberships matching this active wallet
+  const myMemberships = circle?.memberships?.filter(m => {
+    const memberAddr = clean(m.user_id || m.user?.nimiq_address || m.user?.id);
+    return activeWalletAddr && memberAddr && (
+      activeWalletAddr === memberAddr ||
+      clean(m.user_id) === activeWalletAddr ||
+      clean(m.user?.nimiq_address) === activeWalletAddr ||
+      clean(m.user?.id) === activeWalletAddr
+    );
+  }) || [];
+
+  const myApprovedMembership = myMemberships.find(m => (m.status || '').toUpperCase() === 'APPROVED');
+  const myPendingMembership = myMemberships.find(m => (m.status || '').toUpperCase() === 'PENDING');
+  const myRejectedMembership = myMemberships.find(m => (m.status || '').toUpperCase() === 'REJECTED');
+
+  const myMembership = myApprovedMembership || myPendingMembership || myRejectedMembership || null;
 
   // The creator is ALWAYS automatically an approved member of their own circle!
-  const isMember = isOrganizer || (myMembership?.status || '').toUpperCase() === 'APPROVED';
-  const hasRequested = !isOrganizer && (myMembership?.status || '').toUpperCase() === 'PENDING';
+  // If ANY membership record for this wallet is APPROVED, the user is an APPROVED member!
+  const isMember = isOrganizer || !!myApprovedMembership;
+  const hasRequested = !isOrganizer && !myApprovedMembership && !!myPendingMembership;
 
   const handleJoin = async () => {
     try {

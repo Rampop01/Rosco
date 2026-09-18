@@ -133,8 +133,13 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   // 1. Try configured API_BASE
   try {
     response = await fetch(`${API_BASE}${path}`, {
+      cache: 'no-store',
       ...options,
-      headers,
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        ...headers,
+      },
     });
   } catch (err) {
     lastError = err;
@@ -145,8 +150,13 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     try {
       const fallbackUrl = `/api${path}`;
       const fallbackRes = await fetch(fallbackUrl, {
+        cache: 'no-store',
         ...options,
-        headers,
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          ...headers,
+        },
       });
       if (fallbackRes.ok) {
         response = fallbackRes;

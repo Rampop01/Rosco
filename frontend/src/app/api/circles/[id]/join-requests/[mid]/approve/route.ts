@@ -20,9 +20,25 @@ export async function POST(
     return NextResponse.json({ error: 'Join request not found' }, { status: 404 });
   }
 
+  const userAddr = clean(membership.user_id || membership.user?.nimiq_address || membership.user?.id);
   const approvedCount = (circle.memberships || []).filter((m: any) => (m.status || '').toUpperCase() === 'APPROVED').length;
+  
   membership.status = 'APPROVED';
-  membership.joined_order = approvedCount + 1;
+  membership.joined_order = membership.joined_order || (approvedCount + 1);
+
+  // Consolidate duplicate entries: Remove any redundant pending entries for the same user address
+  if (userAddr && circle.memberships) {
+    circle.memberships = circle.memberships.filter((m: any) => {
+      if (m.id === membership.id) return true;
+      const mAddr = clean(m.user_id || m.user?.nimiq_address || m.user?.id);
+      if (mAddr && mAddr === userAddr) {
+        // Redundant duplicate entry for this user
+        return false;
+      }
+      return true;
+    });
+  }
+
   saveCircle(circle);
 
   return NextResponse.json({ success: true, membership, circle });

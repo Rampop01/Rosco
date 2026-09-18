@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllCircles, getCircleById, saveCircle, clearAllCircles, ServerCircle } from '../../../lib/server-store';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
-  return NextResponse.json(getAllCircles());
+  return NextResponse.json(getAllCircles(), {
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    },
+  });
 }
 
 export async function DELETE() {

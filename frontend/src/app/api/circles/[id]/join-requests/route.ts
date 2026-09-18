@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCircleById } from '../../../../../lib/server-store';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
@@ -10,7 +13,7 @@ export async function GET(
     return NextResponse.json([]);
   }
   const pending = (circle.memberships || [])
-    .filter((m: any) => m.status === 'PENDING')
+    .filter((m: any) => (m.status || '').toUpperCase() === 'PENDING')
     .map((m: any) => ({
       id: m.id,
       user_id: m.user_id,
@@ -22,5 +25,9 @@ export async function GET(
         display_name: 'Member'
       }
     }));
-  return NextResponse.json(pending);
+  return NextResponse.json(pending, {
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    },
+  });
 }

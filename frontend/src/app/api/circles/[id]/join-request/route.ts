@@ -31,7 +31,10 @@ export async function POST(
 
   if (!circle.memberships) circle.memberships = [];
 
-  const existing = circle.memberships.find(m => clean(m.user_id || m.user?.nimiq_address) === clean(walletAddress));
+  const existing = circle.memberships.find(m => {
+    const mAddr = clean(m.user_id || m.user?.nimiq_address || m.user?.id);
+    return mAddr && mAddr === clean(walletAddress);
+  });
 
   if (existing) {
     if (!existing.user) {
@@ -41,11 +44,12 @@ export async function POST(
         display_name: body.display_name || 'Member',
       };
     }
+    const isApproved = (existing.status || '').toUpperCase() === 'APPROVED';
     saveCircle(circle);
     return NextResponse.json({ 
       success: true, 
       membership: existing, 
-      message: 'Join request already submitted' 
+      message: isApproved ? 'You are already an approved member of this circle' : 'Join request already submitted' 
     });
   }
 
