@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { authRouter } from './routes/auth';
 import { circlesRouter } from './routes/circles';
 import { roundsRouter } from './routes/rounds';
+import { notificationsRouter } from './routes/notifications';
 import { errorHandler } from './middleware/error';
 import { startVerificationPoller } from './jobs/verification-poller';
 
@@ -28,6 +29,7 @@ app.get('/api/v1/health', (_req, res) => {
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/circles', circlesRouter);
 app.use('/api/v1/rounds', roundsRouter);
+app.use('/api/v1/notifications', notificationsRouter);
 
 // Error handling
 app.use(errorHandler);

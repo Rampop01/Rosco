@@ -1,6 +1,7 @@
 import './globals.css';
 import React from 'react';
 import { AuthProvider } from '../context/AuthContext';
+import PushNotificationManager from '../components/PushNotificationManager';
 
 export const metadata = {
   title: 'Rosco — Rotating Savings & Personal Target Vault (Nimiq Pay)',
@@ -25,6 +26,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <AuthProvider>
+          <PushNotificationManager />
           <div className="app-container">
             {children}
           </div>
