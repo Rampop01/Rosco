@@ -21,6 +21,7 @@ import {
   JoinRequest,
   RoundInfo,
   apiFetch,
+  getToken,
 } from '../../../lib/api';
 import { addNotification } from '../../../lib/notifications';
 
@@ -264,6 +265,16 @@ export default function CircleDetailPage() {
       if (!user && !wallet) {
         await connectWallet();
       }
+
+      // If token is missing (cleared due to 401, or backend auth was blocked by AdBlocker), force authentication
+      if (!getToken()) {
+        await connectWallet();
+      }
+
+      if (!getToken()) {
+        throw new Error('Unable to securely connect to the backend. Please ensure your connection is stable, disable any adblockers, and try again.');
+      }
+
       const myAddr = wallet?.address || user?.nimiq_address || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') || '' : '');
       const myLabel = user?.display_name || wallet?.label || 'Member';
       await joinCircle(circleId, myAddr, myLabel);
