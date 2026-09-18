@@ -10,7 +10,7 @@ export async function GET(
     return NextResponse.json({ current_round: null });
   }
 
-  // Find the currently open round, or the first upcoming round, or the first round
-  const openRound = circle.rounds.find((r: any) => r.status === 'open') || circle.rounds[0];
+  // Find the currently open round, or null if waiting for the next cycle
+  const openRound = circle.rounds.find((r: any) => r.status === 'open') || null;
   return NextResponse.json({ current_round: openRound });
 }

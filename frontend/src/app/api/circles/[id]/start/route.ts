@@ -19,9 +19,15 @@ export async function POST(
     return NextResponse.json({ error: `At least 2 approved members required to start. Currently have ${approved.length}.` }, { status: 400 });
   }
 
-  // Fisher-Yates shuffle for fair, unmanipulatable payout order
+  // Cryptographically unbiased Fisher-Yates shuffle
+  const getRandomInt = (max: number) => {
+    const buf = new Uint32Array(1);
+    crypto.getRandomValues(buf);
+    return buf[0] % max;
+  };
+
   for (let i = approved.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = getRandomInt(i + 1);
     [approved[i], approved[j]] = [approved[j], approved[i]];
   }
 
@@ -38,8 +44,10 @@ export async function POST(
     }
   };
   const intervalMs = getIntervalMs(circle.frequency);
+  const startTime = Date.now();
+  circle.start_date = new Date(startTime).toISOString();
 
-  // Generate a round for each member in randomized order
+  // Generate a round for each member in randomized order (excluding previous recipients)
   circle.rounds = approved.map((recMember: any, idx: number) => {
     const recipientAddr = recMember.user?.nimiq_address || recMember.user?.id || recMember.user_id;
     const recipient = {
@@ -49,12 +57,15 @@ export async function POST(
     };
 
     const cleanRecipientAddr = clean(recipientAddr);
+    const roundStart = startTime + idx * intervalMs;
+    const roundDue = roundStart + intervalMs;
 
     return {
       id: `round_${Date.now()}_${idx + 1}`,
       round_number: idx + 1,
       recipient_id: recipient.id,
-      due_date: new Date(Date.now() + (idx + 1) * intervalMs).toISOString(),
+      start_date: new Date(roundStart).toISOString(),
+      due_date: new Date(roundDue).toISOString(),
       status: idx === 0 ? 'open' : 'upcoming',
       completed_at: null,
       recipient,

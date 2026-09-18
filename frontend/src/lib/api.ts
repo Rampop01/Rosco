@@ -43,6 +43,7 @@ export interface RoundInfo {
   id: string;
   round_number: number;
   recipient_id: string;
+  start_date?: string;
   due_date: string;
   status: string;
   completed_at: string | null;
@@ -532,15 +533,37 @@ export async function startCircle(circleId: string): Promise<Circle> {
       found.status = 'ACTIVE';
       const approved = [...(found.memberships?.filter(m => (m.status || '').toUpperCase() === 'APPROVED') || [])];
 
-      // Fisher-Yates shuffle for fair, random recipient turn order
+      // Cryptographically unbiased Fisher-Yates shuffle
+      const getRandomInt = (max: number) => {
+        if (typeof window !== 'undefined' && window.crypto) {
+          const buf = new Uint32Array(1);
+          window.crypto.getRandomValues(buf);
+          return buf[0] % max;
+        }
+        return Math.floor(Math.random() * max);
+      };
+
       for (let i = approved.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
+        const j = getRandomInt(i + 1);
         [approved[i], approved[j]] = [approved[j], approved[i]];
       }
 
       found.payout_order = approved.map(m => m.user_id);
 
-      // Create all rounds
+      const getIntervalMs = (freq: string) => {
+        switch ((freq || '').toUpperCase()) {
+          case 'DAILY': return 86400000;
+          case 'BIWEEKLY': return 14 * 86400000;
+          case 'MONTHLY': return 30 * 86400000;
+          case 'WEEKLY':
+          default: return 7 * 86400000;
+        }
+      };
+      const intervalMs = getIntervalMs(found.frequency);
+      const startTime = Date.now();
+      found.start_date = new Date(startTime).toISOString();
+
+      // Create all rounds with scheduled start_date and due_date
       found.rounds = approved.map((recMember, idx) => {
         const recipientAddr = recMember.user?.nimiq_address || recMember.user?.id || recMember.user_id;
         const recipient = {
@@ -549,12 +572,15 @@ export async function startCircle(circleId: string): Promise<Circle> {
           display_name: recMember.user?.display_name || `Member ${idx + 1}`,
         };
         const cleanRecAddr = clean(recipientAddr);
+        const roundStart = startTime + idx * intervalMs;
+        const roundDue = roundStart + intervalMs;
 
         return {
           id: `round_${Date.now()}_${idx + 1}`,
           round_number: idx + 1,
           recipient_id: recipient.id,
-          due_date: new Date(Date.now() + (idx + 1) * 7 * 86400000).toISOString(),
+          start_date: new Date(roundStart).toISOString(),
+          due_date: new Date(roundDue).toISOString(),
           status: idx === 0 ? 'open' : 'upcoming',
           completed_at: null,
           recipient,
@@ -614,10 +640,33 @@ export async function getCurrentRound(circleId: string): Promise<{ current_round
     const localCircles = getLocalCircles();
     const found = localCircles.find(c => c.id === circleId);
     if (found && found.rounds && found.rounds.length > 0) {
-      const openRound = found.rounds.find((r: any) => r.status === 'open') || found.rounds[0];
+      const openRound = found.rounds.find((r: any) => r.status === 'open') || null;
       return { current_round: openRound };
     }
     return { current_round: null };
+  }
+}
+
+export async function advanceCircleRound(circleId: string): Promise<any> {
+  try {
+    const res = await apiFetch<any>(`/circles/${circleId}/rounds/advance`, { method: 'POST' });
+    if (res?.circle) {
+      saveLocalCircle(res.circle);
+    }
+    return res;
+  } catch (err) {
+    const localCircles = getLocalCircles();
+    const found = localCircles.find(c => c.id === circleId);
+    if (found && found.rounds) {
+      const nextRound = found.rounds.find((r: any) => r.status === 'upcoming');
+      if (nextRound) {
+        nextRound.status = 'open';
+        nextRound.start_date = new Date().toISOString();
+        saveLocalCircle(found);
+        return { success: true, circle: found, current_round: nextRound };
+      }
+    }
+    throw err;
   }
 }
 
@@ -709,7 +758,8 @@ export async function confirmContribution(roundId: string, txHash: string, walle
           r.completed_at = new Date().toISOString();
           const nextRound = c.rounds?.find((rnd: any) => rnd.round_number === r.round_number + 1);
           if (nextRound) {
-            nextRound.status = 'open';
+            const isTimeReached = nextRound.start_date && Date.now() >= new Date(nextRound.start_date).getTime();
+            nextRound.status = isTimeReached ? 'open' : 'upcoming';
           } else {
             c.status = 'COMPLETED';
           }

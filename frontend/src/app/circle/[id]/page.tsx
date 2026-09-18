@@ -16,6 +16,7 @@ import {
   startCircle,
   deleteCircle,
   getCurrentRound,
+  advanceCircleRound,
   Circle,
   JoinRequest,
   RoundInfo,
@@ -88,6 +89,49 @@ export default function CircleDetailPage() {
       setCircle(data);
 
       if (data.status === 'ACTIVE') {
+        const activeWalletAddr = clean(wallet?.address || user?.nimiq_address || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null));
+
+        // Scan all rounds for incoming payments and pot awards to the active user as recipient
+        if (activeWalletAddr && data.rounds) {
+          data.rounds.forEach((r: any) => {
+            const isMeRecip = clean(r.recipient_id) === activeWalletAddr || clean(r.recipient?.nimiq_address) === activeWalletAddr;
+            if (isMeRecip) {
+              (r.contributions || []).forEach((c: any) => {
+                if ((c.status || '').toUpperCase() === 'CONFIRMED') {
+                  const payKey = `rosco_notified_rcv_${r.id}_${c.id || clean(c.contributor_id || c.contributor?.nimiq_address)}`;
+                  if (typeof window !== 'undefined' && !localStorage.getItem(payKey)) {
+                    addNotification({
+                      title: 'Payment Received! 💰',
+                      message: `${c.contributor?.display_name || 'A circle member'} sent ${data.contribution_amount} ${data.currency} directly to your wallet for Round #${r.round_number}!`,
+                      type: 'payment',
+                      link: `/circle/${circleId}`,
+                      circle_id: circleId,
+                      amount: data.contribution_amount
+                    });
+                    localStorage.setItem(payKey, 'true');
+                  }
+                }
+              });
+
+              if (r.status === 'completed') {
+                const potKey = `rosco_notified_pot_complete_${r.id}`;
+                if (typeof window !== 'undefined' && !localStorage.getItem(potKey)) {
+                  const potTotal = data.contribution_amount * (data.max_members || data.memberships?.length || 1);
+                  addNotification({
+                    title: 'Round Pot Delivered! 🎉',
+                    message: `All member contributions for Round #${r.round_number} are verified! You received the full pot of ${potTotal} ${data.currency} in your wallet.`,
+                    type: 'payment',
+                    link: `/circle/${circleId}`,
+                    circle_id: circleId,
+                    amount: potTotal
+                  });
+                  localStorage.setItem(potKey, 'true');
+                }
+              }
+            }
+          });
+        }
+
         let activeRound: RoundInfo | null = null;
         try {
           const roundRes = await getCurrentRound(circleId);
@@ -95,12 +139,12 @@ export default function CircleDetailPage() {
         } catch {}
 
         if (!activeRound && data.rounds && data.rounds.length > 0) {
-          activeRound = data.rounds.find((r: any) => r.status === 'open') || data.rounds[0];
+          activeRound = data.rounds.find((r: any) => r.status === 'open') || null;
         }
 
-        if (activeRound) {
-          setCurrentRound(activeRound);
+        setCurrentRound(activeRound);
 
+        if (activeRound) {
           // Alert user of upcoming contribution if not already notified
           const notifKey = `rosco_notified_round_${activeRound.id}`;
           if (typeof window !== 'undefined' && !localStorage.getItem(notifKey)) {
@@ -116,7 +160,6 @@ export default function CircleDetailPage() {
           }
 
           // Alert user if they are the winner/recipient of this round
-          const activeWalletAddr = clean(wallet?.address || user?.nimiq_address || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null));
           const winnerKey = `rosco_notified_winner_${activeRound.id}`;
           const isMeWinner = activeWalletAddr && (clean(activeRound.recipient_id) === activeWalletAddr || clean(activeRound.recipient?.nimiq_address) === activeWalletAddr);
           if (isMeWinner && !localStorage.getItem(winnerKey)) {
@@ -311,6 +354,25 @@ export default function CircleDetailPage() {
       await loadCircleData();
     } catch (err: any) {
       alert(err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleAdvanceRound = async () => {
+    try {
+      setActionLoading(true);
+      await advanceCircleRound(circleId);
+      addNotification({
+        title: 'Next Round Opened! 🚀',
+        message: `Advanced to the next scheduled round in ${circle?.name}!`,
+        type: 'system',
+        link: `/circle/${circleId}`,
+        circle_id: circleId
+      });
+      await loadCircleData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to advance round');
     } finally {
       setActionLoading(false);
     }
@@ -781,301 +843,472 @@ export default function CircleDetailPage() {
         )}
 
         {/* ─── ACTIVE STATE ─────────────────────────────────────────────────── */}
-        {circle.status === 'ACTIVE' && currentRound && (
+        {circle.status === 'ACTIVE' && (
           <div>
-            {/* Screen 5: Active Round Banner */}
-            <div className="glass-card" style={{
-              background: '#FFFFFF',
-              border: '1.5px solid #E2E8F0',
-              borderRadius: '16px',
-              padding: '1.5rem',
-              boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
-              marginBottom: '1.25rem'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
-                  Round {currentRound.round_number} of {circle.rounds?.length || approvedMembers.length}
-                </h3>
-                <span style={{
-                  background: '#ECFDF5',
-                  color: '#059669',
-                  border: '1px solid #A7F3D0',
-                  padding: '0.35rem 0.75rem',
-                  borderRadius: '9999px',
-                  fontSize: '0.75rem',
-                  fontWeight: 800,
-                  letterSpacing: '0.05em'
+            {currentRound ? (
+              <div>
+                {/* Screen 5: Active Round Banner */}
+                <div className="glass-card" style={{
+                  background: '#FFFFFF',
+                  border: '1.5px solid #E2E8F0',
+                  borderRadius: '16px',
+                  padding: '1.5rem',
+                  boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+                  marginBottom: '1.25rem'
                 }}>
-                  IN PROGRESS
-                </span>
-              </div>
-
-              {/* Recipient Card */}
-              <div style={{
-                background: '#F8FAFC',
-                border: '1px solid #E2E8F0',
-                padding: '1rem 1.15rem',
-                borderRadius: '12px',
-                marginBottom: '1.25rem'
-              }}>
-                <span style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '0.25rem' }}>
-                  🎁 Round Recipient (Gets Full Pot)
-                </span>
-                <strong style={{ fontSize: '1.2rem', color: '#0F172A', fontWeight: 800, display: 'block', marginBottom: '0.2rem' }}>
-                  {currentRound.recipient?.display_name || 'Circle Member'}
-                </strong>
-                <span style={{ fontSize: '0.82rem', color: '#0066FF', fontFamily: 'monospace', fontWeight: 600, wordBreak: 'break-all', display: 'block' }}>
-                  {currentRound.recipient?.nimiq_address}
-                </span>
-
-                {(() => {
-                  const myAddr = clean(wallet?.address || user?.nimiq_address || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null));
-                  const recAddr = clean(currentRound.recipient_id || currentRound.recipient?.nimiq_address || currentRound.recipient?.id);
-                  if (myAddr && recAddr && myAddr === recAddr) {
-                    return (
-                      <div style={{
-                        marginTop: '0.85rem',
-                        background: '#ECFDF5',
-                        border: '1px solid #10B981',
-                        padding: '0.75rem 1rem',
-                        borderRadius: '10px',
-                        fontSize: '0.88rem',
-                        color: '#065F46',
-                        fontWeight: 700,
-                        textAlign: 'center',
-                        lineHeight: 1.5
-                      }}>
-                        🎉 You are the recipient for this round! You will receive the gathered pot directly to your wallet.
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-              </div>
-
-              {/* Action Button & Contribution Lock with Countdown */}
-              {(() => {
-                const myWallet = clean(
-                  wallet?.address ||
-                  user?.nimiq_address ||
-                  (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null)
-                );
-                const recWallet = clean(currentRound.recipient_id || currentRound.recipient?.nimiq_address || currentRound.recipient?.id);
-                const isRecipient = !!(myWallet && recWallet && myWallet === recWallet);
-
-                const myContrib = currentRound.contributions?.find(c => {
-                  const cAddr = clean(c.contributor_id || c.contributor?.nimiq_address || c.contributor?.id);
-                  return myWallet && cAddr && myWallet === cAddr;
-                });
-                const hasPaid = (myContrib?.status || '').toUpperCase() === 'CONFIRMED';
-                const roundDueDate = currentRound.due_date || new Date(Date.now() + 7 * 86400000).toISOString();
-
-                // Not connected yet
-                if (!myWallet) {
-                  return (
-                    <div style={{ marginTop: '0.85rem' }}>
-                      <button 
-                        className="btn-primary" 
-                        onClick={() => connectWallet()}
-                        style={{
-                          width: '100%',
-                          padding: '0.95rem',
-                          fontSize: '1rem',
-                          fontWeight: 800,
-                          background: 'linear-gradient(135deg, #0066FF 0%, #0040B0 100%)',
-                          boxShadow: '0 4px 14px rgba(0, 102, 255, 0.25)',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        ⚡ Connect Nimiq Wallet to Pay Round ({circle.contribution_amount} {circle.currency})
-                      </button>
-                    </div>
-                  );
-                }
-
-                // If user is the recipient for this round
-                if (isRecipient) {
-                  return (
-                    <div style={{
-                      marginTop: '0.85rem',
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
+                      Round {currentRound.round_number} of {circle.rounds?.length || approvedMembers.length}
+                    </h3>
+                    <span style={{
                       background: '#ECFDF5',
-                      border: '1.5px solid #10B981',
-                      borderRadius: '12px',
-                      padding: '1rem',
-                      textAlign: 'center',
-                      color: '#065F46'
+                      color: '#059669',
+                      border: '1px solid #A7F3D0',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '9999px',
+                      fontSize: '0.75rem',
+                      fontWeight: 800,
+                      letterSpacing: '0.05em'
                     }}>
-                      <div style={{ fontSize: '1.5rem', marginBottom: '0.35rem' }}>🏆</div>
-                      <strong style={{ fontSize: '1.05rem', display: 'block', marginBottom: '0.25rem' }}>
-                        You are the Recipient for Round #{currentRound.round_number}!
-                      </strong>
-                      <p style={{ fontSize: '0.85rem', color: '#047857', margin: 0 }}>
-                        All other members contribute {circle.contribution_amount} {circle.currency} directly to your wallet this round.
-                      </p>
-                    </div>
-                  );
-                }
-
-                // If user has already paid their contribution
-                if (hasPaid) {
-                  return (
-                    <div style={{ marginTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                      <div style={{
-                        background: 'rgba(16, 185, 129, 0.12)',
-                        border: '1.5px solid #10B981',
-                        borderRadius: '12px',
-                        padding: '0.85rem 1rem',
-                        textAlign: 'center',
-                        color: '#065F46'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontWeight: 800 }}>
-                          <CheckCircle2 style={{ width: '18px', height: '18px', color: '#10B981' }} />
-                          <span>Round #{currentRound.round_number} Contribution Paid</span>
-                        </div>
-                        <p style={{ fontSize: '0.82rem', color: '#475569', marginTop: '0.25rem', marginBottom: 0 }}>
-                          Your contribution is verified on-chain. Locked until Round #{currentRound.round_number + 1} begins.
-                        </p>
-                      </div>
-
-                      <CountdownTimer 
-                        targetDate={roundDueDate} 
-                        label="Next Round Contribution Opens In" 
-                      />
-
-                      <button 
-                        className="btn-secondary" 
-                        disabled 
-                        style={{
-                          width: '100%',
-                          opacity: 0.6,
-                          cursor: 'not-allowed',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '0.4rem',
-                          padding: '0.75rem'
-                        }}
-                      >
-                        <Lock style={{ width: '15px', height: '15px' }} />
-                        <span>Contribution Locked Until Next Round</span>
-                      </button>
-                    </div>
-                  );
-                }
-
-                // Member needs to pay!
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.85rem' }}>
-                    <CountdownTimer 
-                      targetDate={roundDueDate} 
-                      label="Round Contribution Deadline" 
-                    />
-
-                    <button 
-                      className="btn-primary" 
-                      onClick={() => setShowPayModal(true)} 
-                      style={{ 
-                        width: '100%', 
-                        padding: '1rem',
-                        fontSize: '1.05rem',
-                        fontWeight: 800,
-                        background: 'linear-gradient(135deg, #0066FF 0%, #0040B0 100%)',
-                        boxShadow: '0 4px 16px rgba(0, 102, 255, 0.35)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.5rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      💳 Pay Round ({circle.contribution_amount} {circle.currency}) to {currentRound.recipient?.display_name || 'Recipient'}
-                    </button>
+                      IN PROGRESS
+                    </span>
                   </div>
-                );
-              })()}
 
-              {/* Security notice: active circles are locked against deletion */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.4rem',
-                padding: '0.5rem 0.8rem',
-                background: '#F8FAFC',
-                borderRadius: '10px',
-                color: '#475569',
-                fontSize: '0.76rem',
-                fontWeight: 600,
-                marginTop: '1.25rem',
-                border: '1px solid #E2E8F0'
-              }}>
-                <span>🔒</span>
-                <span>Non-Custodial Lock: Active circles cannot be deleted to prevent default and protect round payouts.</span>
-              </div>
-            </div>
-
-            {/* Round Contributions Tracker */}
-            <div className="glass-card" style={{
-              background: '#FFFFFF',
-              border: '1.5px solid #E2E8F0',
-              borderRadius: '16px',
-              padding: '1.5rem',
-              boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
-              marginBottom: '1.25rem'
-            }}>
-              <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', marginBottom: '1rem' }}>
-                Contributions Status ({currentRound.contributions?.filter(c => (c.status || '').toUpperCase() === 'CONFIRMED').length || 0} / {currentRound.contributions?.length || Math.max(1, approvedMembers.length - 1)} Paid)
-              </h4>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {currentRound.contributions?.map(contrib => (
-                  <div key={contrib.id} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.85rem 1rem',
+                  {/* Recipient Card */}
+                  <div style={{
                     background: '#F8FAFC',
                     border: '1px solid #E2E8F0',
-                    borderRadius: '12px'
+                    padding: '1rem 1.15rem',
+                    borderRadius: '12px',
+                    marginBottom: '1.25rem'
                   }}>
-                    <div>
-                      <strong style={{ fontSize: '0.95rem', color: '#0F172A', fontWeight: 700, display: 'block' }}>
-                        {contrib.contributor?.display_name || 'Member'}
-                      </strong>
-                      <span style={{ fontSize: '0.78rem', color: '#64748B', fontFamily: 'monospace', fontWeight: 500 }}>
-                        {contrib.contributor?.nimiq_address ? `${contrib.contributor.nimiq_address.slice(0, 10)}...` : 'Nimiq Wallet'}
-                      </span>
-                    </div>
+                    <span style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '0.25rem' }}>
+                      🎁 Round Recipient (Gets Full Pot)
+                    </span>
+                    <strong style={{ fontSize: '1.2rem', color: '#0F172A', fontWeight: 800, display: 'block', marginBottom: '0.2rem' }}>
+                      {currentRound.recipient?.display_name || 'Circle Member'}
+                    </strong>
+                    <span style={{ fontSize: '0.82rem', color: '#0066FF', fontFamily: 'monospace', fontWeight: 600, wordBreak: 'break-all', display: 'block' }}>
+                      {currentRound.recipient?.nimiq_address}
+                    </span>
 
-                    {(contrib.status || '').toUpperCase() === 'CONFIRMED' ? (
-                      <span style={{
-                        background: '#ECFDF5',
-                        color: '#059669',
-                        border: '1px solid #A7F3D0',
-                        padding: '0.3rem 0.65rem',
-                        borderRadius: '9999px',
-                        fontSize: '0.75rem',
-                        fontWeight: 800
-                      }}>
-                        ✓ Paid
-                      </span>
-                    ) : (
-                      <span style={{
-                        background: '#FEF3C7',
-                        color: '#B45309',
-                        border: '1px solid #FDE68A',
-                        padding: '0.3rem 0.65rem',
-                        borderRadius: '9999px',
-                        fontSize: '0.75rem',
-                        fontWeight: 800
-                      }}>
-                        Pending
-                      </span>
-                    )}
+                    {(() => {
+                      const myAddr = clean(wallet?.address || user?.nimiq_address || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null));
+                      const recAddr = clean(currentRound.recipient_id || currentRound.recipient?.nimiq_address || currentRound.recipient?.id);
+                      if (myAddr && recAddr && myAddr === recAddr) {
+                        return (
+                          <div style={{
+                            marginTop: '0.85rem',
+                            background: '#ECFDF5',
+                            border: '1px solid #10B981',
+                            padding: '0.75rem 1rem',
+                            borderRadius: '10px',
+                            fontSize: '0.88rem',
+                            color: '#065F46',
+                            fontWeight: 700,
+                            textAlign: 'center',
+                            lineHeight: 1.5
+                          }}>
+                            🎉 You are the recipient for this round! You will receive the gathered pot directly to your wallet.
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
-                ))}
+
+                  {/* Action Button & Contribution Lock with Countdown */}
+                  {(() => {
+                    const myWallet = clean(
+                      wallet?.address ||
+                      user?.nimiq_address ||
+                      (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null)
+                    );
+                    const recWallet = clean(currentRound.recipient_id || currentRound.recipient?.nimiq_address || currentRound.recipient?.id);
+                    const isRecipient = !!(myWallet && recWallet && myWallet === recWallet);
+
+                    const myContrib = currentRound.contributions?.find(c => {
+                      const cAddr = clean(c.contributor_id || c.contributor?.nimiq_address || c.contributor?.id);
+                      return myWallet && cAddr && myWallet === cAddr;
+                    });
+                    const hasPaid = (myContrib?.status || '').toUpperCase() === 'CONFIRMED';
+                    const roundDueDate = currentRound.due_date || new Date(Date.now() + 7 * 86400000).toISOString();
+
+                    // Not connected yet
+                    if (!myWallet) {
+                      return (
+                        <div style={{ marginTop: '0.85rem' }}>
+                          <button 
+                            className="btn-primary" 
+                            onClick={() => connectWallet()}
+                            style={{
+                              width: '100%',
+                              padding: '0.95rem',
+                              fontSize: '1rem',
+                              fontWeight: 800,
+                              background: 'linear-gradient(135deg, #0066FF 0%, #0040B0 100%)',
+                              boxShadow: '0 4px 14px rgba(0, 102, 255, 0.25)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            ⚡ Connect Nimiq Wallet to Pay Round ({circle.contribution_amount} {circle.currency})
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    // If user is the recipient for this round
+                    if (isRecipient) {
+                      return (
+                        <div style={{
+                          marginTop: '0.85rem',
+                          background: '#ECFDF5',
+                          border: '1.5px solid #10B981',
+                          borderRadius: '12px',
+                          padding: '1rem',
+                          textAlign: 'center',
+                          color: '#065F46'
+                        }}>
+                          <div style={{ fontSize: '1.5rem', marginBottom: '0.35rem' }}>🏆</div>
+                          <strong style={{ fontSize: '1.05rem', display: 'block', marginBottom: '0.25rem' }}>
+                            You are the Recipient for Round #{currentRound.round_number}!
+                          </strong>
+                          <p style={{ fontSize: '0.85rem', color: '#047857', margin: 0 }}>
+                            All other members contribute {circle.contribution_amount} {circle.currency} directly to your wallet this round.
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    // If user has already paid their contribution
+                    if (hasPaid) {
+                      return (
+                        <div style={{ marginTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                          <div style={{
+                            background: 'rgba(16, 185, 129, 0.12)',
+                            border: '1.5px solid #10B981',
+                            borderRadius: '12px',
+                            padding: '0.85rem 1rem',
+                            textAlign: 'center',
+                            color: '#065F46'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontWeight: 800 }}>
+                              <CheckCircle2 style={{ width: '18px', height: '18px', color: '#10B981' }} />
+                              <span>Round #{currentRound.round_number} Contribution Paid</span>
+                            </div>
+                            <p style={{ fontSize: '0.82rem', color: '#475569', marginTop: '0.25rem', marginBottom: 0 }}>
+                              Your contribution is verified on-chain. Locked until Round #{currentRound.round_number + 1} begins.
+                            </p>
+                          </div>
+
+                          <CountdownTimer 
+                            targetDate={roundDueDate} 
+                            label="Next Round Contribution Opens In" 
+                          />
+
+                          <button 
+                            className="btn-secondary" 
+                            disabled 
+                            style={{
+                              width: '100%',
+                              opacity: 0.6,
+                              cursor: 'not-allowed',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.4rem',
+                              padding: '0.75rem'
+                            }}
+                          >
+                            <Lock style={{ width: '15px', height: '15px' }} />
+                            <span>Contribution Locked Until Next Round</span>
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    // Member needs to pay!
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.85rem' }}>
+                        <CountdownTimer 
+                          targetDate={roundDueDate} 
+                          label="Round Contribution Deadline" 
+                        />
+
+                        <button 
+                          className="btn-primary" 
+                          onClick={() => setShowPayModal(true)} 
+                          style={{ 
+                            width: '100%', 
+                            padding: '1rem',
+                            fontSize: '1.05rem',
+                            fontWeight: 800,
+                            background: 'linear-gradient(135deg, #0066FF 0%, #0040B0 100%)',
+                            boxShadow: '0 4px 16px rgba(0, 102, 255, 0.35)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.5rem',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          💳 Pay Round ({circle.contribution_amount} {circle.currency}) to {currentRound.recipient?.display_name || 'Recipient'}
+                        </button>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Security notice: active circles are locked against deletion */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    padding: '0.5rem 0.8rem',
+                    background: '#F8FAFC',
+                    borderRadius: '10px',
+                    color: '#475569',
+                    fontSize: '0.76rem',
+                    fontWeight: 600,
+                    marginTop: '1.25rem',
+                    border: '1px solid #E2E8F0'
+                  }}>
+                    <span>🔒</span>
+                    <span>Non-Custodial Lock: Active circles cannot be deleted to prevent default and protect round payouts.</span>
+                  </div>
+                </div>
+
+                {/* Round Contributions Tracker */}
+                <div className="glass-card" style={{
+                  background: '#FFFFFF',
+                  border: '1.5px solid #E2E8F0',
+                  borderRadius: '16px',
+                  padding: '1.5rem',
+                  boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+                  marginBottom: '1.25rem'
+                }}>
+                  <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', marginBottom: '1rem' }}>
+                    Contributions Status ({currentRound.contributions?.filter(c => (c.status || '').toUpperCase() === 'CONFIRMED').length || 0} / {currentRound.contributions?.length || Math.max(1, approvedMembers.length - 1)} Paid)
+                  </h4>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {currentRound.contributions?.map(contrib => (
+                      <div key={contrib.id} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.85rem 1rem',
+                        background: '#F8FAFC',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: '12px'
+                      }}>
+                        <div>
+                          <strong style={{ fontSize: '0.95rem', color: '#0F172A', fontWeight: 700, display: 'block' }}>
+                            {contrib.contributor?.display_name || 'Member'}
+                          </strong>
+                          <span style={{ fontSize: '0.78rem', color: '#64748B', fontFamily: 'monospace', fontWeight: 500 }}>
+                            {contrib.contributor?.nimiq_address ? `${contrib.contributor.nimiq_address.slice(0, 10)}...` : 'Nimiq Wallet'}
+                          </span>
+                        </div>
+
+                        {(contrib.status || '').toUpperCase() === 'CONFIRMED' ? (
+                          <span style={{
+                            background: '#ECFDF5',
+                            color: '#059669',
+                            border: '1px solid #A7F3D0',
+                            padding: '0.3rem 0.65rem',
+                            borderRadius: '9999px',
+                            fontSize: '0.75rem',
+                            fontWeight: 800
+                          }}>
+                            ✓ Paid
+                          </span>
+                        ) : (
+                          <span style={{
+                            background: '#FEF3C7',
+                            color: '#B45309',
+                            border: '1px solid #FDE68A',
+                            padding: '0.3rem 0.65rem',
+                            borderRadius: '9999px',
+                            fontSize: '0.75rem',
+                            fontWeight: 800
+                          }}>
+                            Pending
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              /* Waiting period between cycles */
+              (() => {
+                const completedRounds = (circle.rounds || []).filter((r: any) => r.status === 'completed');
+                const upcomingRounds = (circle.rounds || []).filter((r: any) => r.status === 'upcoming');
+                const lastCompleted = completedRounds[completedRounds.length - 1];
+                const nextUpcoming = upcomingRounds[0];
+
+                if (!nextUpcoming) {
+                  return null;
+                }
+
+                const nextStartDate = nextUpcoming.start_date || nextUpcoming.due_date || new Date(Date.now() + 7 * 86400000).toISOString();
+                const totalPot = circle.contribution_amount * (circle.max_members || approvedMembers.length || 1);
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {/* Last Completed Round Summary */}
+                    {lastCompleted && (
+                      <div className="glass-card" style={{
+                        background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
+                        border: '1.5px solid #10B981',
+                        borderRadius: '16px',
+                        padding: '1.5rem',
+                        boxShadow: '0 4px 16px rgba(16, 185, 129, 0.1)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontSize: '1.5rem' }}>🎉</span>
+                            <h3 style={{ fontSize: '1.25rem', color: '#065F46', fontWeight: 800, margin: 0 }}>
+                              Round {lastCompleted.round_number} Finished & Paid Out
+                            </h3>
+                          </div>
+                          <span style={{
+                            background: '#10B981',
+                            color: '#FFFFFF',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            padding: '0.25rem 0.65rem',
+                            borderRadius: '9999px'
+                          }}>
+                            ✓ 100% DISBURSED
+                          </span>
+                        </div>
+
+                        <p style={{ fontSize: '0.88rem', color: '#047857', marginBottom: '1rem', lineHeight: 1.4 }}>
+                          All member contributions for Round #{lastCompleted.round_number} were verified on-chain. The full round pot of <strong>{totalPot} {circle.currency}</strong> was delivered directly to <strong>{lastCompleted.recipient?.display_name || 'the recipient'}</strong>.
+                        </p>
+
+                        <div style={{
+                          background: '#FFFFFF',
+                          border: '1px solid #A7F3D0',
+                          borderRadius: '12px',
+                          padding: '0.75rem 1rem',
+                          fontSize: '0.82rem',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}>
+                          <span style={{ color: '#065F46', fontWeight: 600 }}>Round #{lastCompleted.round_number} Winner:</span>
+                          <span style={{ fontFamily: 'monospace', color: '#047857', fontWeight: 700 }}>
+                            {lastCompleted.recipient?.display_name} ({lastCompleted.recipient?.nimiq_address ? `${lastCompleted.recipient.nimiq_address.slice(0, 8)}...` : ''})
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Scheduled Next Round Countdown */}
+                    <div className="glass-card" style={{
+                      background: '#FFFFFF',
+                      border: '1.5px solid #E2E8F0',
+                      borderRadius: '16px',
+                      padding: '1.75rem',
+                      textAlign: 'center',
+                      boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)'
+                    }}>
+                      <div style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        background: 'rgba(0, 102, 255, 0.08)',
+                        color: '#0066FF',
+                        border: '1px solid rgba(0, 102, 255, 0.2)',
+                        padding: '0.3rem 0.75rem',
+                        borderRadius: '9999px',
+                        fontSize: '0.75rem',
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        marginBottom: '1rem'
+                      }}>
+                        <span>⏳ Scheduled {circle.frequency} Cycle</span>
+                      </div>
+
+                      <h3 style={{ fontSize: '1.4rem', color: '#0F172A', fontWeight: 800, marginBottom: '0.4rem' }}>
+                        Round {nextUpcoming.round_number} of {circle.rounds?.length || approvedMembers.length}
+                      </h3>
+                      <p className="text-secondary" style={{ fontSize: '0.88rem', maxWidth: '460px', margin: '0 auto 1.25rem' }}>
+                        In accordance with your circle's <strong>{circle.frequency.toLowerCase()} schedule</strong>, Round {nextUpcoming.round_number} contributions will open when the scheduled interval begins.
+                      </p>
+
+                      <div style={{
+                        background: '#F8FAFC',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: '12px',
+                        padding: '0.85rem 1rem',
+                        maxWidth: '420px',
+                        margin: '0 auto 1.5rem',
+                        fontSize: '0.85rem'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Next Round Recipient:</span>
+                          <strong style={{ color: '#0066FF' }}>
+                            {nextUpcoming.recipient?.display_name || 'Next Member'}
+                          </strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.35rem', fontSize: '0.75rem', color: '#64748B' }}>
+                          <span>Recipient Selection:</span>
+                          <span>Excludes previously paid members</span>
+                        </div>
+                      </div>
+
+                      <div style={{ maxWidth: '380px', margin: '0 auto' }}>
+                        <CountdownTimer
+                          targetDate={nextStartDate}
+                          label={`Round ${nextUpcoming.round_number} Opens In`}
+                          onExpire={handleAdvanceRound}
+                        />
+                      </div>
+
+                      {isOrganizer && (
+                        <div style={{
+                          marginTop: '1.5rem',
+                          paddingTop: '1.25rem',
+                          borderTop: '1px solid #F1F5F9'
+                        }}>
+                          <button
+                            className="btn-primary"
+                            onClick={handleAdvanceRound}
+                            disabled={actionLoading}
+                            style={{
+                              padding: '0.75rem 1.25rem',
+                              fontSize: '0.88rem',
+                              fontWeight: 800,
+                              background: '#0066FF',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.4rem',
+                              cursor: actionLoading ? 'not-allowed' : 'pointer'
+                            }}
+                          >
+                            <span>⚡ Open Round {nextUpcoming.round_number} Now</span>
+                          </button>
+                          <span style={{
+                            display: 'block',
+                            fontSize: '0.74rem',
+                            color: '#94A3B8',
+                            marginTop: '0.4rem'
+                          }}>
+                            Organizer shortcut: open Round {nextUpcoming.round_number} early without waiting for the full {circle.frequency.toLowerCase()} interval.
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()
+            )}
           </div>
         )}
 

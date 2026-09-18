@@ -49,7 +49,8 @@ export async function POST(
         // Advance to the next round if available
         const nextRound = c.rounds?.find((rnd: any) => rnd.round_number === r.round_number + 1);
         if (nextRound) {
-          nextRound.status = 'open';
+          const isTimeReached = nextRound.start_date && Date.now() >= new Date(nextRound.start_date).getTime();
+          nextRound.status = isTimeReached ? 'open' : 'upcoming';
         } else {
           // All rounds finished — circle is complete
           c.status = 'COMPLETED';

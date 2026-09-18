@@ -6,6 +6,7 @@ import { Header } from '../components/Header';
 import { CircleCard } from '../components/CircleCard';
 import { LandingPage } from '../components/LandingPage';
 import { getCircles, resetAllTestData, Circle } from '../lib/api';
+import { addNotification } from '../lib/notifications';
 import { TargetSavingsView } from '../components/TargetSavingsView';
 import { RoscoLogo } from '../components/RoscoLogo';
 import Link from 'next/link';
@@ -31,13 +32,59 @@ export default function Home() {
     if (user) {
       loadCircles();
     }
-  }, [user]);
+  }, [user, wallet]);
 
   const loadCircles = async () => {
     try {
       setFetching(true);
       const list = await getCircles();
       setCircles(list);
+
+      // Automated scan: Alert recipient if contributions have landed in their wallet
+      const activeWalletAddr = (wallet?.address || user?.nimiq_address || '').replace(/\s+/g, '').toUpperCase();
+      if (activeWalletAddr && list && list.length > 0) {
+        const clean = (addr?: string) => (addr || '').replace(/\s+/g, '').toUpperCase();
+        list.forEach((circle: any) => {
+          if (!circle.rounds || !Array.isArray(circle.rounds)) return;
+          circle.rounds.forEach((r: any) => {
+            const isMeRecip = clean(r.recipient_id) === activeWalletAddr || clean(r.recipient?.nimiq_address) === activeWalletAddr;
+            if (isMeRecip) {
+              (r.contributions || []).forEach((c: any) => {
+                if ((c.status || '').toUpperCase() === 'CONFIRMED') {
+                  const payKey = `rosco_notified_rcv_${r.id}_${c.id || clean(c.contributor_id || c.contributor?.nimiq_address)}`;
+                  if (typeof window !== 'undefined' && !localStorage.getItem(payKey)) {
+                    addNotification({
+                      title: 'Payment Received! 💰',
+                      message: `${c.contributor?.display_name || 'A circle member'} sent ${circle.contribution_amount} ${circle.currency || 'NIM'} directly to your wallet for Round #${r.round_number} of ${circle.name}!`,
+                      type: 'payment',
+                      link: `/circle/${circle.id}`,
+                      circle_id: circle.id,
+                      amount: circle.contribution_amount
+                    });
+                    localStorage.setItem(payKey, 'true');
+                  }
+                }
+              });
+
+              if (r.status === 'completed') {
+                const potKey = `rosco_notified_pot_complete_${r.id}`;
+                if (typeof window !== 'undefined' && !localStorage.getItem(potKey)) {
+                  const potTotal = circle.contribution_amount * (circle.max_members || circle.memberships?.length || 1);
+                  addNotification({
+                    title: 'Round Pot Delivered! 🎉',
+                    message: `All member contributions for Round #${r.round_number} in ${circle.name} are verified! You received the full pot of ${potTotal} ${circle.currency || 'NIM'} in your wallet.`,
+                    type: 'payment',
+                    link: `/circle/${circle.id}`,
+                    circle_id: circle.id,
+                    amount: potTotal
+                  });
+                  localStorage.setItem(potKey, 'true');
+                }
+              }
+            }
+          });
+        });
+      }
     } catch (err) {
       console.error('Failed to load circles:', err);
     } finally {
