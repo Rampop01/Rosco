@@ -2,7 +2,6 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../index';
 import { authenticate, optionalAuthenticate } from '../middleware/auth';
 import { verifyTransaction } from '../lib/nimiq-rpc';
-import { sendNotificationToUser } from '../lib/webpush';
 import { z } from 'zod';
 
 export const roundsRouter: Router = Router();
@@ -133,7 +132,7 @@ roundsRouter.post('/circles/:circleId/rounds/advance', authenticate, async (req:
           status: 'open',
         },
       });
-      
+
       const updatedCircle = await prisma.circle.findUnique({
         where: { id: circleId },
         include: {
@@ -147,25 +146,6 @@ roundsRouter.post('/circles/:circleId/rounds/advance', authenticate, async (req:
           },
         },
       });
-
-      // Send push notifications to all members that the round has started
-      const contributors = nextRound.contributions || [];
-      for (const contrib of contributors) {
-        if (contrib.contributorId !== nextRound.recipientId) {
-          await sendNotificationToUser(contrib.contributorId, {
-            title: `Round ${nextRound.roundNumber} is Open!`,
-            body: `It's time to make your contribution to ${updatedCircle?.rounds.find(r => r.id === nextRound.id)?.recipient.displayName || 'the recipient'}.`,
-            url: `/circle/${circleId}`
-          }).catch(console.error);
-        }
-      }
-      
-      // Notify the recipient
-      await sendNotificationToUser(nextRound.recipientId, {
-        title: `Your Payout Round has started!`,
-        body: `Round ${nextRound.roundNumber} is active. Members will now start sending their contributions to you.`,
-        url: `/circle/${circleId}`
-      }).catch(console.error);
 
       res.json({ success: true, current_round: nextRound, circle: updatedCircle });
     } else {
@@ -234,19 +214,10 @@ roundsRouter.post('/rounds/:id/contributions/intent', authenticate, async (req: 
     let interceptMessage = `Rosco: Round ${round.roundNumber} contribution to ${round.recipient.displayName || round.recipient.nimiqAddress}`;
 
     if (pastDebts.length > 0) {
-      // Deterministic Routing: Sort contributors (excluding recipient) consistently
-      const payingContributors = round.contributions
-        .filter(c => c.contributorId !== round.recipientId)
-        .sort((a, b) => a.contributorId.localeCompare(b.contributorId));
-        
-      const myIndex = payingContributors.findIndex(c => c.contributorId === userId);
-      
-      // If the current user's index maps to an unsettled debt, they are assigned to pay it!
-      if (myIndex !== -1 && myIndex < pastDebts.length) {
-        const assignedDebt = pastDebts[myIndex];
-        targetRecipient = assignedDebt.round.recipient;
-        interceptMessage = `Rosco: Routed to ${targetRecipient.displayName} (Debt Intercept for Round ${assignedDebt.round.roundNumber})`;
-      }
+      // Pick the oldest unsettled debt
+      const oldestDebt = pastDebts[0];
+      targetRecipient = oldestDebt.round.recipient;
+      interceptMessage = `Rosco: Routed to ${targetRecipient.displayName} (Debt Intercept for Round ${oldestDebt.round.roundNumber})`;
     }
 
     // Return pre-filled payment payload for the SDK
@@ -392,19 +363,6 @@ roundsRouter.post('/rounds/:id/contributions/confirm', authenticate, async (req:
           confirmedAt: new Date(),
         },
       });
-      // Notify the past recipient that their debt was settled
-      await sendNotificationToUser(debtContributionToSettle.round.recipientId, {
-        title: `Payment Received (Debt Intercept)!`,
-        body: `You received ${expectedAmount} NIM that was owed to you from Round ${debtContributionToSettle.round.roundNumber}.`,
-        url: `/circle/${round.circleId}`
-      }).catch(console.error);
-    } else {
-      // Notify the current round recipient
-      await sendNotificationToUser(round.recipientId, {
-        title: `Payment Received!`,
-        body: `You just received a contribution of ${expectedAmount} NIM for Round ${round.roundNumber}.`,
-        url: `/circle/${round.circleId}`
-      }).catch(console.error);
     }
 
     // Check if all contributions for this round are confirmed
@@ -441,16 +399,6 @@ roundsRouter.post('/rounds/:id/contributions/confirm', authenticate, async (req:
           where: { id: round.circleId },
           data: { status: 'completed' },
         });
-        
-        // Notify members that circle is complete
-        const circleMembers = await prisma.membership.findMany({ where: { circleId: round.circleId, status: 'approved' }});
-        for (const m of circleMembers) {
-          await sendNotificationToUser(m.userId, {
-            title: `Circle Completed! 🎉`,
-            body: `All rounds for ${round.circle.name} have successfully finished.`,
-            url: `/circle/${round.circleId}`
-          }).catch(console.error);
-        }
       }
     }
 

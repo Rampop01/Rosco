@@ -183,13 +183,9 @@ export default function CircleDetailPage() {
       }
 
       // Check if current user is a member whose request was approved or rejected
-      if (!isOrgCheck && activeWallet) {
+      if (!isOrgCheck && activeWalletIds.length > 0) {
         const isUserApproved = data.memberships?.some(
-          (m: any) => (
-            clean(m.user_id) === activeWallet ||
-            clean(m.user?.nimiq_address) === activeWallet ||
-            clean(m.user?.id) === activeWallet
-          ) && (m.status || '').toUpperCase() === 'APPROVED'
+          (m: any) => activeWalletIds.some(id => [clean(m.user_id), clean(m.user?.nimiq_address), clean(m.user?.id)].includes(id)) && (m.status || '').toUpperCase() === 'APPROVED'
         );
 
         if (isUserApproved) {
@@ -206,11 +202,7 @@ export default function CircleDetailPage() {
           }
         } else {
           const isUserRejected = data.memberships?.some(
-            (m: any) => (
-              clean(m.user_id) === activeWallet ||
-              clean(m.user?.nimiq_address) === activeWallet ||
-              clean(m.user?.id) === activeWallet
-            ) && (m.status || '').toUpperCase() === 'REJECTED'
+            (m: any) => activeWalletIds.some(id => [clean(m.user_id), clean(m.user?.nimiq_address), clean(m.user?.id)].includes(id)) && (m.status || '').toUpperCase() === 'REJECTED'
           );
           if (isUserRejected) {
             const rejectedNotifKey = `rosco_notified_rejected_${circleId}`;
@@ -678,7 +670,7 @@ export default function CircleDetailPage() {
                 <h4 style={{ fontSize: '1rem', marginBottom: '0.85rem' }}>Approved Members</h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                   {approvedMembers.map((m, idx) => {
-                    const isThisOrg = clean(m.user_id || m.user?.nimiq_address) === orgAddr;
+                    const isThisOrg = orgIds.includes(clean(m.user_id)) || orgIds.includes(clean(m.user?.nimiq_address));
                     const rawAddr = (m.user?.nimiq_address || '').replace(/\s+/g, '');
                     const shortAddr = rawAddr ? `${rawAddr.slice(0, 4)}...${rawAddr.slice(-4)}` : 'Nimiq Wallet';
 
