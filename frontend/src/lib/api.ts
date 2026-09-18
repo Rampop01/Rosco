@@ -147,33 +147,14 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     lastError = err;
   }
 
-  // 2. If external API failed, fall back to internal Next.js /api proxy
-  if (!response || (!response.ok && API_BASE !== '/api' && (response.status === 404 || response.status >= 500))) {
-    try {
-      const fallbackUrl = `/api${path}`;
-      const fallbackRes = await fetch(fallbackUrl, {
-        cache: 'no-store',
-        ...options,
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          ...headers,
-        },
-      });
-      if (fallbackRes.ok) {
-        response = fallbackRes;
-        lastError = null;
-      }
-    } catch (fallbackErr) {
-      // Keep original error
-    }
-  }
-
   if (!response) {
     throw lastError || new Error('Network request failed');
   }
 
   if (!response.ok) {
+    if (response.status === 401) {
+      clearToken();
+    }
     let errorMessage = `HTTP ${response.status}`;
     try {
       const errBody = await response.json();
