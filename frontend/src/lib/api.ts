@@ -450,59 +450,53 @@ export async function getJoinRequests(circleId: string): Promise<JoinRequest[]> 
   try {
     const res = await apiFetch<JoinRequest[]>(`/circles/${circleId}/join-requests`);
     if (Array.isArray(res)) return res;
+    return [];
   } catch (e) {
+    // Only fall back to localStorage if truly offline/unreachable
     console.warn('[Rosco] Failed to fetch join requests from API, checking local store:', e);
+    const localCircles = getLocalCircles();
+    const found = localCircles.find(c => c.id === circleId);
+    if (found && found.memberships) {
+      return found.memberships
+        .filter(m => (m.status || '').toUpperCase() === 'PENDING')
+        .map(m => ({
+          id: m.id,
+          user_id: m.user_id,
+          status: m.status,
+          requested_at: new Date().toISOString(),
+          user: m.user || {
+            id: m.user_id,
+            nimiq_address: m.user_id,
+            display_name: 'Member'
+          }
+        }));
+    }
+    return [];
   }
-
-  const localCircles = getLocalCircles();
-  const found = localCircles.find(c => c.id === circleId);
-  if (found && found.memberships) {
-    return found.memberships
-      .filter(m => (m.status || '').toUpperCase() === 'PENDING')
-      .map(m => ({
-        id: m.id,
-        user_id: m.user_id,
-        status: m.status,
-        requested_at: new Date().toISOString(),
-        user: m.user || {
-          id: m.user_id,
-          nimiq_address: m.user_id,
-          display_name: 'Member'
-        }
-      }));
-  }
-  return [];
 }
 
 export async function approveJoinRequest(circleId: string, membershipId: string): Promise<any> {
   const clean = (a?: string | null) => (a ? a.replace(/\s+/g, '').toUpperCase() : '');
   const target = clean(membershipId);
 
+  const res = await apiFetch<any>(`/circles/${circleId}/join-requests/${membershipId}/approve`, { method: 'POST' });
+
+  // Always sync local cache with backend truth after a successful approval
   try {
-    const res = await apiFetch<any>(`/circles/${circleId}/join-requests/${membershipId}/approve`, { method: 'POST' });
-    if (res?.circle) {
-      saveLocalCircle(res.circle);
-    } else {
-      const localCircles = getLocalCircles();
-      const found = localCircles.find(c => c.id === circleId);
-      if (found && found.memberships) {
-        const m = found.memberships.find(mem => mem.id === membershipId || clean(mem.user_id) === target || clean(mem.user?.nimiq_address) === target);
-        if (m) m.status = 'APPROVED';
-        saveLocalCircle(found);
-      }
-    }
-    return res;
-  } catch (err) {
+    const freshCircle = await apiFetch<any>(`/circles/${circleId}`);
+    saveLocalCircle(freshCircle);
+  } catch {
+    // Fallback: patch local cache
     const localCircles = getLocalCircles();
     const found = localCircles.find(c => c.id === circleId);
     if (found && found.memberships) {
       const m = found.memberships.find(mem => mem.id === membershipId || clean(mem.user_id) === target || clean(mem.user?.nimiq_address) === target);
       if (m) m.status = 'APPROVED';
       saveLocalCircle(found);
-      return { success: true };
     }
-    throw err;
   }
+
+  return res;
 }
 
 export async function rejectJoinRequest(circleId: string, membershipId: string): Promise<any> {

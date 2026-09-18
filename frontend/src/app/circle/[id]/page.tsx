@@ -181,43 +181,10 @@ export default function CircleDetailPage() {
       const isOrgCheck = isCreatorDevice || (activeWallet && orgWallet && activeWallet === orgWallet);
 
       if (data.status === 'FORMING') {
-        let requests = await getJoinRequests(circleId);
-        const approvedUserAddrs = new Set<string>();
-        (data.memberships || []).forEach((m: any) => {
-          if ((m.status || '').toUpperCase() === 'APPROVED') {
-            if (m.user_id) approvedUserAddrs.add(clean(m.user_id));
-            if (m.user?.nimiq_address) approvedUserAddrs.add(clean(m.user?.nimiq_address));
-            if (m.user?.id) approvedUserAddrs.add(clean(m.user?.id));
-          }
-        });
-
-        if (data.memberships) {
-          const directPending = data.memberships
-            .filter((m: any) => {
-               const isPending = (m.status || '').toUpperCase() === 'PENDING';
-               const isAlreadyApproved = approvedUserAddrs.has(clean(m.user_id)) || (m.user?.nimiq_address && approvedUserAddrs.has(clean(m.user?.nimiq_address)));
-               const alreadyInRequests = requests.some(r => r.id === m.id || clean(r.user_id) === clean(m.user_id) || (r.user?.nimiq_address && m.user?.nimiq_address && clean(r.user?.nimiq_address) === clean(m.user?.nimiq_address)));
-               return isPending && !isAlreadyApproved && !alreadyInRequests;
-            })
-            .map((m: any) => ({
-              id: m.id,
-              user_id: m.user_id,
-              status: m.status,
-              requested_at: m.created_at || new Date().toISOString(),
-              user: m.user || {
-                id: m.user_id,
-                nimiq_address: m.user_id,
-                display_name: 'Member'
-              }
-            }));
-          if (directPending.length > 0) {
-            requests = [...requests, ...directPending];
-          }
-        }
-
-        // Strictly exclude any members who have already been approved
-        requests = requests.filter(r => !approvedUserAddrs.has(clean(r.user_id)) && !(r.user?.nimiq_address && approvedUserAddrs.has(clean(r.user?.nimiq_address))));
+        // Always trust the backend for join requests — do NOT merge local cache
+        const requests = await getJoinRequests(circleId);
         setJoinRequests(requests);
+
         const pendingCount = requests.filter(r => (r.status || '').toUpperCase() === 'PENDING').length;
         const reqKey = `rosco_notified_req_${circleId}_${pendingCount}`;
         if (isOrgCheck && pendingCount > 0 && typeof window !== 'undefined' && !sessionStorage.getItem(reqKey)) {
