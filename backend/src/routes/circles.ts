@@ -657,3 +657,56 @@ circlesRouter.post('/:id/cancel', authenticate, async (req: Request, res: Respon
     res.status(500).json({ error: 'Failed to cancel circle' });
   }
 });
+
+// ─── POST /circles/:id/debts/:contributionId/clear ──────────────────────────
+
+circlesRouter.post('/:id/debts/:contributionId/clear', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id: circleId, contributionId } = req.params;
+    const userId = req.user!.userId;
+
+    const circle = await prisma.circle.findUnique({ where: { id: circleId } });
+
+    if (!circle) {
+      res.status(404).json({ error: 'Circle not found' });
+      return;
+    }
+    if (circle.organizerId !== userId) {
+      res.status(403).json({ error: 'Only the organizer can clear debts' });
+      return;
+    }
+
+    const contribution = await prisma.contribution.findUnique({
+      where: { id: contributionId },
+      include: { round: true },
+    });
+
+    if (!contribution || contribution.round.circleId !== circleId) {
+      res.status(404).json({ error: 'Debt contribution not found' });
+      return;
+    }
+
+    if (contribution.status !== 'pending' && contribution.status !== 'failed') {
+      res.status(400).json({ error: 'Only pending or failed contributions can be cleared' });
+      return;
+    }
+
+    if (contribution.round.status !== 'missed_partial' && contribution.round.status !== 'completed') {
+      res.status(400).json({ error: 'Can only clear debts from past rounds' });
+      return;
+    }
+
+    await prisma.contribution.update({
+      where: { id: contributionId },
+      data: {
+        status: 'settled_manual',
+        confirmedAt: new Date(),
+      },
+    });
+
+    res.json({ success: true, message: 'Debt settled manually' });
+  } catch (error) {
+    console.error('Clear debt error:', error);
+    res.status(500).json({ error: 'Failed to clear debt' });
+  }
+});

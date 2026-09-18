@@ -20,6 +20,7 @@ import {
   Circle,
   JoinRequest,
   RoundInfo,
+  apiFetch,
 } from '../../../lib/api';
 import { addNotification } from '../../../lib/notifications';
 
@@ -181,15 +182,23 @@ export default function CircleDetailPage() {
 
       if (data.status === 'FORMING') {
         let requests = await getJoinRequests(circleId);
-        const approvedUserAddrs = new Set(
-          (data.memberships || [])
-            .filter((m: any) => (m.status || '').toUpperCase() === 'APPROVED')
-            .map((m: any) => clean(m.user_id || m.user?.nimiq_address))
-        );
+        const approvedUserAddrs = new Set<string>();
+        (data.memberships || []).forEach((m: any) => {
+          if ((m.status || '').toUpperCase() === 'APPROVED') {
+            if (m.user_id) approvedUserAddrs.add(clean(m.user_id));
+            if (m.user?.nimiq_address) approvedUserAddrs.add(clean(m.user?.nimiq_address));
+            if (m.user?.id) approvedUserAddrs.add(clean(m.user?.id));
+          }
+        });
 
         if (data.memberships) {
           const directPending = data.memberships
-            .filter((m: any) => (m.status || '').toUpperCase() === 'PENDING' && !approvedUserAddrs.has(clean(m.user_id || m.user?.nimiq_address)) && !requests.some(r => r.id === m.id || clean(r.user_id) === clean(m.user_id)))
+            .filter((m: any) => {
+               const isPending = (m.status || '').toUpperCase() === 'PENDING';
+               const isAlreadyApproved = approvedUserAddrs.has(clean(m.user_id)) || (m.user?.nimiq_address && approvedUserAddrs.has(clean(m.user?.nimiq_address)));
+               const alreadyInRequests = requests.some(r => r.id === m.id || clean(r.user_id) === clean(m.user_id) || (r.user?.nimiq_address && m.user?.nimiq_address && clean(r.user?.nimiq_address) === clean(m.user?.nimiq_address)));
+               return isPending && !isAlreadyApproved && !alreadyInRequests;
+            })
             .map((m: any) => ({
               id: m.id,
               user_id: m.user_id,
@@ -207,7 +216,7 @@ export default function CircleDetailPage() {
         }
 
         // Strictly exclude any members who have already been approved
-        requests = requests.filter(r => !approvedUserAddrs.has(clean(r.user_id || r.user?.nimiq_address)));
+        requests = requests.filter(r => !approvedUserAddrs.has(clean(r.user_id)) && !(r.user?.nimiq_address && approvedUserAddrs.has(clean(r.user?.nimiq_address))));
         setJoinRequests(requests);
         const pendingCount = requests.filter(r => (r.status || '').toUpperCase() === 'PENDING').length;
         const reqKey = `rosco_notified_req_${circleId}_${pendingCount}`;
@@ -293,9 +302,7 @@ export default function CircleDetailPage() {
 
   // Find all memberships matching this active wallet
   const myMemberships = circle?.memberships?.filter(m => {
-    const memberAddr = clean(m.user_id || m.user?.nimiq_address || m.user?.id);
-    return activeWalletAddr && memberAddr && (
-      activeWalletAddr === memberAddr ||
+    return activeWalletAddr && (
       clean(m.user_id) === activeWalletAddr ||
       clean(m.user?.nimiq_address) === activeWalletAddr ||
       clean(m.user?.id) === activeWalletAddr
@@ -445,6 +452,25 @@ export default function CircleDetailPage() {
       router.push('/');
     } catch (err: any) {
       alert(err.message || 'Failed to cancel circle');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleClearDebt = async (contributionId: string) => {
+    if (!confirm('Are you sure you want to mark this debt as settled manually (e.g. paid in cash)?')) return;
+    try {
+      setActionLoading(true);
+      await apiFetch(`/circles/${circleId}/debts/${contributionId}/clear`, { method: 'POST' });
+      addNotification({
+        title: 'Debt Cleared',
+        message: `Member debt marked as manually settled.`,
+        type: 'system',
+        link: `/circle/${circleId}`,
+      });
+      await loadCircleData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to clear debt');
     } finally {
       setActionLoading(false);
     }
@@ -1033,6 +1059,7 @@ export default function CircleDetailPage() {
                           <CountdownTimer 
                             targetDate={roundDueDate} 
                             label="Next Round Contribution Opens In" 
+                            onExpire={handleAdvanceRound}
                           />
 
                           <button 
@@ -1061,7 +1088,8 @@ export default function CircleDetailPage() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.85rem' }}>
                         <CountdownTimer 
                           targetDate={roundDueDate} 
-                          label="Round Contribution Deadline" 
+                          label="Round Contribution Deadline"
+                          onExpire={handleAdvanceRound}
                         />
 
                         <button 
@@ -1173,7 +1201,7 @@ export default function CircleDetailPage() {
             ) : (
               /* Waiting period between cycles */
               (() => {
-                const completedRounds = (circle.rounds || []).filter((r: any) => r.status === 'completed');
+                const completedRounds = (circle.rounds || []).filter((r: any) => r.status === 'completed' || r.status === 'missed_partial');
                 const upcomingRounds = (circle.rounds || []).filter((r: any) => r.status === 'upcoming');
                 const lastCompleted = completedRounds[completedRounds.length - 1];
                 const nextUpcoming = upcomingRounds[0];
@@ -1184,44 +1212,64 @@ export default function CircleDetailPage() {
 
                 const nextStartDate = nextUpcoming.start_date || nextUpcoming.due_date || new Date(Date.now() + 7 * 86400000).toISOString();
                 const totalPot = circle.contribution_amount * (circle.max_members || approvedMembers.length || 1);
+                const isPartial = lastCompleted?.status === 'missed_partial';
+                const missingContribs = isPartial ? (lastCompleted.contributions || []).filter((c: any) => (c.status || '').toUpperCase() !== 'CONFIRMED') : [];
 
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                     {/* Last Completed Round Summary */}
                     {lastCompleted && (
                       <div className="glass-card" style={{
-                        background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
-                        border: '1.5px solid #10B981',
+                        background: isPartial ? 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)' : 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
+                        border: `1.5px solid ${isPartial ? '#F59E0B' : '#10B981'}`,
                         borderRadius: '16px',
                         padding: '1.5rem',
-                        boxShadow: '0 4px 16px rgba(16, 185, 129, 0.1)'
+                        boxShadow: `0 4px 16px ${isPartial ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)'}`
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <span style={{ fontSize: '1.5rem' }}>🎉</span>
-                            <h3 style={{ fontSize: '1.25rem', color: '#065F46', fontWeight: 800, margin: 0 }}>
-                              Round {lastCompleted.round_number} Finished & Paid Out
+                            <span style={{ fontSize: '1.5rem' }}>{isPartial ? '⚠️' : '🎉'}</span>
+                            <h3 style={{ fontSize: '1.25rem', color: isPartial ? '#B45309' : '#065F46', fontWeight: 800, margin: 0 }}>
+                              Round {lastCompleted.round_number} Finished {isPartial && '(Partial)'}
                             </h3>
                           </div>
                           <span style={{
-                            background: '#10B981',
+                            background: isPartial ? '#F59E0B' : '#10B981',
                             color: '#FFFFFF',
                             fontSize: '0.72rem',
                             fontWeight: 800,
                             padding: '0.25rem 0.65rem',
                             borderRadius: '9999px'
                           }}>
-                            ✓ 100% DISBURSED
+                            {isPartial ? '⚠️ PARTIAL DISBURSEMENT' : '✓ 100% DISBURSED'}
                           </span>
                         </div>
 
-                        <p style={{ fontSize: '0.88rem', color: '#047857', marginBottom: '1rem', lineHeight: 1.4 }}>
-                          All member contributions for Round #{lastCompleted.round_number} were verified on-chain. The full round pot of <strong>{totalPot} {circle.currency}</strong> was delivered directly to <strong>{lastCompleted.recipient?.display_name || 'the recipient'}</strong>.
+                        <p style={{ fontSize: '0.88rem', color: isPartial ? '#92400E' : '#047857', marginBottom: '1rem', lineHeight: 1.4 }}>
+                          {isPartial 
+                            ? `Round #${lastCompleted.round_number} time elapsed without full payment. The partial pot was delivered to ${lastCompleted.recipient?.display_name || 'the recipient'}.`
+                            : `All member contributions for Round #${lastCompleted.round_number} were verified on-chain. The full round pot of ${totalPot} ${circle.currency} was delivered directly to ${lastCompleted.recipient?.display_name || 'the recipient'}.`
+                          }
                         </p>
+
+                        {isPartial && missingContribs.length > 0 && (
+                          <div style={{
+                            background: 'rgba(245, 158, 11, 0.1)',
+                            border: '1px solid #FCD34D',
+                            padding: '0.75rem',
+                            borderRadius: '10px',
+                            marginBottom: '1rem',
+                            fontSize: '0.82rem',
+                            color: '#92400E'
+                          }}>
+                            <strong>Missing Payments from:</strong> {missingContribs.map((c: any) => c.contributor?.display_name || 'Member').join(', ')}.<br/>
+                            <em>Their debt will be automatically intercepted during their payout round.</em>
+                          </div>
+                        )}
 
                         <div style={{
                           background: '#FFFFFF',
-                          border: '1px solid #A7F3D0',
+                          border: `1px solid ${isPartial ? '#FDE68A' : '#A7F3D0'}`,
                           borderRadius: '12px',
                           padding: '0.75rem 1rem',
                           fontSize: '0.82rem',
@@ -1229,8 +1277,8 @@ export default function CircleDetailPage() {
                           justifyContent: 'space-between',
                           alignItems: 'center'
                         }}>
-                          <span style={{ color: '#065F46', fontWeight: 600 }}>Round #{lastCompleted.round_number} Winner:</span>
-                          <span style={{ fontFamily: 'monospace', color: '#047857', fontWeight: 700 }}>
+                          <span style={{ color: isPartial ? '#B45309' : '#065F46', fontWeight: 600 }}>Round #{lastCompleted.round_number} Winner:</span>
+                          <span style={{ fontFamily: 'monospace', color: isPartial ? '#92400E' : '#047857', fontWeight: 700 }}>
                             {lastCompleted.recipient?.display_name} ({lastCompleted.recipient?.nimiq_address ? `${lastCompleted.recipient.nimiq_address.slice(0, 8)}...` : ''})
                           </span>
                         </div>
@@ -1350,6 +1398,60 @@ export default function CircleDetailPage() {
               All rounds have finished successfully. Total pot distributed across members.
             </p>
           </div>
+        )}
+
+        {/* ─── ADMIN DEBT MANAGEMENT ─────────────────────────────────────────── */}
+        {isOrganizer && (circle.status === 'ACTIVE' || circle.status === 'COMPLETED') && (
+          (() => {
+            const allUnsettledDebts = circle.rounds?.flatMap(r => 
+              (r.status === 'completed' || r.status === 'missed_partial') 
+                ? (r.contributions || []).filter(c => c.status === 'pending' || c.status === 'failed').map(c => ({...c, round_id: r.id}))
+                : []
+            ) || [];
+
+            if (allUnsettledDebts.length === 0) return null;
+
+            return (
+              <div className="glass-card" style={{ marginTop: '1.5rem', border: '1.5px solid #EF4444' }}>
+                <h4 style={{ color: '#EF4444', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span>⚠️</span> Manage Unsettled Debts
+                </h4>
+                <p className="text-muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
+                  The following members missed their payment deadline. If they paid the recipient outside the system, you can manually mark the debt as settled here.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {allUnsettledDebts.map(debt => (
+                    <div key={debt.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.85rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '10px' }}>
+                      <div>
+                        <strong style={{ display: 'block', color: '#991B1B', fontSize: '0.9rem' }}>
+                          {debt.contributor?.display_name || 'Member'}
+                        </strong>
+                        <span style={{ fontSize: '0.75rem', color: '#B91C1C' }}>
+                          Missed Round {circle.rounds?.find(r => r.id === debt.round_id)?.round_number} ({circle.contribution_amount} {circle.currency})
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleClearDebt(debt.id)}
+                        disabled={actionLoading}
+                        style={{
+                          background: '#EF4444',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          padding: '0.4rem 0.8rem',
+                          borderRadius: '8px',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Mark Settled
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()
         )}
       </main>
 

@@ -36,6 +36,7 @@ export interface RoundContribution {
   tx_hash: string | null;
   status: string;
   confirmed_at: string | null;
+  round_id?: string;
   contributor?: CircleMember;
 }
 
@@ -116,7 +117,7 @@ export function clearToken(): void {
 
 // ─── HTTP Helper ────────────────────────────────────────────────────────────
 
-async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
