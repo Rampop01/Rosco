@@ -223,18 +223,21 @@ export async function createCircle(data: {
     organizer_name: walletLabel,
   };
 
-  return await apiFetch<Circle>('/circles', {
+  const c = await apiFetch<Circle>('/circles', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+  return { ...c, status: (c.status || '').toUpperCase() };
 }
 
 export async function getCircles(): Promise<Circle[]> {
-  return await apiFetch<Circle[]>('/circles');
+  const circles = await apiFetch<Circle[]>('/circles');
+  return circles.map(c => ({ ...c, status: (c.status || '').toUpperCase() }));
 }
 
 export async function getCircle(id: string): Promise<Circle> {
-  return await apiFetch<Circle>(`/circles/${id}`);
+  const c = await apiFetch<Circle>(`/circles/${id}`);
+  return { ...c, status: (c.status || '').toUpperCase() };
 }
 
 export async function joinCircle(circleId: string, customWalletAddress?: string, customWalletLabel?: string): Promise<{ id: string; status: string; message: string }> {
