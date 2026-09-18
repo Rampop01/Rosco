@@ -134,18 +134,9 @@ export async function verifyTransaction(
   }
 
   if (!tx) {
-    console.warn(`[Rosco] Nimiq RPC node (${NIMIQ_RPC_URL}) unavailable or tx not found. Simulating successful verification for demo/prototype purposes.`);
     return {
-      valid: true,
-      transaction: {
-        hash: txHash,
-        from: expectedSender,
-        to: expectedRecipient,
-        value: nimToLuna(expectedAmountNIM),
-        confirmations: 1,
-        blockNumber: 0,
-        timestamp: Date.now()
-      }
+      valid: false,
+      reason: 'Transaction not found on-chain. It may not have been broadcast yet or the hash is invalid.',
     };
   }
 
