@@ -149,9 +149,19 @@ export default function CircleDetailPage() {
         }
       }
 
-      const activeWallet = clean(wallet?.address || user?.nimiq_address || user?.id || (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null));
-      const orgWallet = clean(data.organizer_id || data.organizer?.nimiq_address);
-      const isOrgCheck = activeWallet && orgWallet && activeWallet === orgWallet;
+      const activeWalletIds = [
+        clean(wallet?.address),
+        clean(user?.nimiq_address),
+        clean(user?.id),
+        clean(typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null)
+      ].filter(Boolean);
+      
+      const orgIds = [
+        clean(data.organizer_id),
+        clean(data.organizer?.nimiq_address)
+      ].filter(Boolean);
+
+      const isOrgCheck = activeWalletIds.some(id => orgIds.includes(id));
 
       if (data.status === 'FORMING') {
         // Always trust the backend for join requests — do NOT merge local cache
@@ -225,24 +235,24 @@ export default function CircleDetailPage() {
     }
   };
 
-  const activeWalletAddr = clean(
-    wallet?.address ||
-    user?.nimiq_address ||
-    user?.id ||
-    (typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null)
-  );
-  const orgAddr = clean(circle?.organizer_id || circle?.organizer?.nimiq_address);
+  const activeWalletIds = [
+    clean(wallet?.address),
+    clean(user?.nimiq_address),
+    clean(user?.id),
+    clean(typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null)
+  ].filter(Boolean);
 
-  // Organizer check: wallet matches stored organizer address
-  const isOrganizer = !!(activeWalletAddr && orgAddr && activeWalletAddr === orgAddr);
+  const orgIds = [
+    clean(circle?.organizer_id),
+    clean(circle?.organizer?.nimiq_address)
+  ].filter(Boolean);
+
+  // Organizer check: any active wallet ID matches any organizer ID
+  const isOrganizer = activeWalletIds.some(id => orgIds.includes(id));
 
   // Find all memberships matching this active wallet
   const myMemberships = circle?.memberships?.filter(m => {
-    return activeWalletAddr && (
-      clean(m.user_id) === activeWalletAddr ||
-      clean(m.user?.nimiq_address) === activeWalletAddr ||
-      clean(m.user?.id) === activeWalletAddr
-    );
+    return activeWalletIds.some(id => [clean(m.user_id), clean(m.user?.nimiq_address), clean(m.user?.id)].includes(id));
   }) || [];
 
   const myApprovedMembership = myMemberships.find(m => (m.status || '').toUpperCase() === 'APPROVED');
