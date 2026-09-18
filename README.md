@@ -17,7 +17,7 @@
 
 ---
 
-## 📌 Table of Contents
+## Table of Contents
 - [Inspiration & Problem](#-inspiration--problem)
 - [The Solution: Rosco](#-the-solution-rosco)
 - [Key Features](#-key-features)
@@ -33,7 +33,7 @@
 
 ---
 
-## 💡 Inspiration & Problem
+## Inspiration & Problem
 
 Over **1 billion people** worldwide rely on informal community rotating savings groups—known culturally as **ROSCAs**, **Esusu** (West Africa), **Kolo** (Nigeria), **Tandas** (Latin America), **Chit Funds** (India), **Hui** (East Asia), and **Pardna** (Caribbean). Together, they circulate over **$500 Billion** annually based entirely on trust.
 
@@ -45,7 +45,7 @@ However, traditional informal circles suffer from fatal flaws:
 
 ---
 
-## ⚡ The Solution: Rosco
+## The Solution: Rosco
 
 **Rosco** re-engineers traditional community savings into a transparent, decentralized, non-custodial Web3 application powered by the **Nimiq blockchain**.
 
@@ -56,7 +56,7 @@ However, traditional informal circles suffer from fatal flaws:
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
 ### 1. 🔄 Rotating Savings Circles (ROSCAs / Kolo)
 * **Customizable Group Rules**: Organizers set the contribution amount (e.g. 100 NIM), member capacity (3 to 30), and payout cadence (**Daily**, **Weekly**, or **Monthly**).
@@ -85,7 +85,7 @@ However, traditional informal circles suffer from fatal flaws:
 
 ---
 
-## 🗺️ Detailed User Flows
+## Detailed User Flows
 
 ### Flow 1: Rotating Savings Circle (ROSCA / Kolo)
 
@@ -154,7 +154,7 @@ sequenceDiagram
 
 ---
 
-## 🏛️ Architecture & Tech Stack
+## Architecture & Tech Stack
 
 ```
 rosco/
@@ -192,7 +192,7 @@ rosco/
 
 ---
 
-## 🎲 Fair Randomness Algorithm (Fisher-Yates)
+## Fair Randomness Algorithm (Fisher-Yates)
 
 To guarantee that neither the organizer nor early joiners can rig the payout order, Rosco uses the **Fisher-Yates Shuffle Algorithm**:
 
@@ -211,7 +211,7 @@ circle.payout_order = approved.map(m => m.user_id);
 
 ---
 
-## 🔐 Nimiq Blockchain & Vault Integration
+## Nimiq Blockchain & Vault Integration
 
 Automatic payouts from the Target Savings Vault are executed directly on the Nimiq blockchain using `@nimiq/core`:
 
@@ -223,7 +223,7 @@ Automatic payouts from the Target Savings Vault are executed directly on the Nim
 
 ---
 
-## ⚙️ Environment Variables
+## Environment Variables
 
 Add these to your **Vercel Project Settings ➔ Environment Variables** (or `frontend/.env.local` for local development):
 
@@ -240,7 +240,7 @@ NIMIQ_NETWORK="testnet"
 
 ---
 
-## 💻 Getting Started
+## Getting Started
 
 ### Prerequisites
 * **Node.js** >= 18.0.0
@@ -278,5 +278,5 @@ NIMIQ_NETWORK="testnet"
 
 ---
 
-## 📄 License
+## License
 This project is open-source and licensed under the [MIT License](LICENSE).
