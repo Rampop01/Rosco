@@ -277,6 +277,3 @@ NIMIQ_NETWORK="testnet"
    ```
 
 ---
-
-## License
-This project is open-source and licensed under the [MIT License](LICENSE).
