@@ -43,6 +43,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             language: 'en',
             created_at: new Date().toISOString(),
           });
+
+          // Restore existing token or re-authenticate with the backend
+          const existingToken = getToken();
+          if (existingToken) {
+            setTokenState(existingToken);
+          } else {
+            // No token — silently re-authenticate to get a fresh one
+            try {
+              const res = await authenticateUser(primary.address, primary.label);
+              setUser(res.user);
+              setTokenState(res.token);
+            } catch {
+              // Offline or backend unavailable — user can still view but not mutate
+            }
+          }
         }
       } catch (err) {
         console.error('Failed to initialize Nimiq Pay auth:', err);
