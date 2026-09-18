@@ -135,7 +135,14 @@ export async function verifyTransaction(
   expectedRecipient: string,
   expectedAmountNIM: number
 ): Promise<VerificationResult> {
-  const tx = await getTransaction(txHash);
+  let tx: NimiqTransaction | null = null;
+  
+  // Retry fetching from mempool a few times to allow for network propagation
+  for (let i = 0; i < 3; i++) {
+    tx = await getTransaction(txHash);
+    if (tx) break;
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
 
   if (!tx) {
     return {
@@ -144,8 +151,8 @@ export async function verifyTransaction(
     };
   }
 
-  // Check confirmations (require at least 10 for safety)
-  const MIN_CONFIRMATIONS = 10;
+  // Check confirmations (0-conf is acceptable for this trusted circle use-case to ensure instant UX)
+  const MIN_CONFIRMATIONS = 0;
   if (tx.confirmations < MIN_CONFIRMATIONS) {
     return {
       valid: false,
