@@ -1181,7 +1181,9 @@ export default function CircleDetailPage() {
                   return null;
                 }
 
-                const nextStartDate = nextUpcoming.start_date || nextUpcoming.due_date || new Date(Date.now() + 7 * 86400000).toISOString();
+                // Round N opens when round N-1's due_date passes.
+                const prevRound = completedRounds[completedRounds.length - 1];
+                const nextOpenDate = prevRound?.due_date || new Date(Date.now()).toISOString();
                 const totalPot = circle.contribution_amount * (circle.max_members || approvedMembers.length || 1);
                 const isPartial = lastCompleted?.status === 'missed_partial';
                 const missingContribs = isPartial ? (lastCompleted.contributions || []).filter((c: any) => (c.status || '').toUpperCase() !== 'CONFIRMED') : [];
@@ -1313,8 +1315,8 @@ export default function CircleDetailPage() {
 
                       <div style={{ maxWidth: '380px', margin: '0 auto' }}>
                         <CountdownTimer
-                          targetDate={nextStartDate}
-                          label={`Round ${nextUpcoming.round_number} Opens In`}
+                          targetDate={nextOpenDate}
+                          label={`Round ${nextUpcoming.round_number} opens in`}
                           onExpire={handleAdvanceRound}
                         />
                       </div>
