@@ -59,6 +59,16 @@ function serializeCircle(circle: any) {
         nimiq_address: r.recipient.nimiqAddress,
         display_name: r.recipient.displayName,
       } : undefined,
+      contributions: r.contributions?.map((c: any) => ({
+        id: c.id,
+        round_id: c.roundId,
+        contributor_id: c.contributorId,
+        status: c.status,
+        tx_hash: c.txHash,
+        amount: c.amount,
+        created_at: c.createdAt,
+        confirmed_at: c.confirmedAt,
+      })),
     })),
   };
 }
