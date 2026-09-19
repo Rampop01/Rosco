@@ -1025,7 +1025,11 @@ export default function CircleDetailPage() {
 
                           <CountdownTimer 
                             targetDate={roundDueDate} 
-                            label="Next Round Contribution Opens In" 
+                            label={
+                              currentRound.round_number >= (circle.max_members || 0)
+                                ? `Final round closes in`
+                                : `Round #${currentRound.round_number} closes — Round #${currentRound.round_number + 1} opens in`
+                            } 
                             onExpire={handleAdvanceRound}
                           />
 
@@ -1055,7 +1059,7 @@ export default function CircleDetailPage() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.85rem' }}>
                         <CountdownTimer 
                           targetDate={roundDueDate} 
-                          label="Round Contribution Deadline"
+                          label={`Round #${currentRound.round_number} closes in`}
                           onExpire={handleAdvanceRound}
                         />
 
