@@ -384,17 +384,15 @@ roundsRouter.post('/rounds/:id/contributions/confirm', authenticate, async (req:
         },
       });
 
-      // Check if this was the last round — if so, mark circle as completed
-      const openRounds = await prisma.round.count({
+      // Check if this was the last round — only mark circle completed if no open OR upcoming rounds remain
+      const remainingRounds = await prisma.round.count({
         where: {
           circleId: round.circleId,
-          status: 'open',
+          status: { in: ['open', 'upcoming'] },
         },
       });
 
-      // openRounds will be 0 now since we just closed the last open one
-      // But we need to check if there are any remaining open rounds (other than this one)
-      if (openRounds === 0) {
+      if (remainingRounds === 0) {
         await prisma.circle.update({
           where: { id: round.circleId },
           data: { status: 'completed' },

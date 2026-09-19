@@ -932,7 +932,7 @@ export default function CircleDetailPage() {
                     const isRecipient = !!(myWallet && recWallet && myWallet === recWallet);
 
                     const myContrib = currentRound.contributions?.find(c => {
-                      const cAddr = clean(c.contributor_id || c.contributor?.nimiq_address || c.contributor?.id);
+                      const cAddr = clean(c.contributor?.nimiq_address);
                       return myWallet && cAddr && myWallet === cAddr;
                     });
                     const hasPaid = (myContrib?.status || '').toUpperCase() === 'CONFIRMED';
@@ -964,22 +964,40 @@ export default function CircleDetailPage() {
                     // If user is the recipient for this round
                     if (isRecipient) {
                       return (
-                        <div style={{
-                          marginTop: '0.85rem',
-                          background: '#ECFDF5',
-                          border: '1.5px solid #10B981',
-                          borderRadius: '12px',
-                          padding: '1rem',
-                          textAlign: 'center',
-                          color: '#065F46'
-                        }}>
-                          <div style={{ fontSize: '1.5rem', marginBottom: '0.35rem' }}>🏆</div>
-                          <strong style={{ fontSize: '1.05rem', display: 'block', marginBottom: '0.25rem' }}>
-                            You are the Recipient for Round #{currentRound.round_number}!
-                          </strong>
-                          <p style={{ fontSize: '0.85rem', color: '#047857', margin: 0 }}>
-                            All other members contribute {circle.contribution_amount} {circle.currency} directly to your wallet this round.
-                          </p>
+                        <div style={{ marginTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                          <div style={{
+                            background: '#ECFDF5',
+                            border: '1.5px solid #10B981',
+                            borderRadius: '12px',
+                            padding: '1rem',
+                            textAlign: 'center',
+                            color: '#065F46'
+                          }}>
+                            <div style={{ fontSize: '1.5rem', marginBottom: '0.35rem' }}>🏆</div>
+                            <strong style={{ fontSize: '1.05rem', display: 'block', marginBottom: '0.25rem' }}>
+                              You are the Recipient for Round #{currentRound.round_number}!
+                            </strong>
+                            <p style={{ fontSize: '0.85rem', color: '#047857', margin: 0 }}>
+                              All other members contribute {circle.contribution_amount} {circle.currency} directly to your wallet this round.
+                            </p>
+                          </div>
+                          <button
+                            className="btn-secondary"
+                            disabled
+                            style={{
+                              width: '100%',
+                              opacity: 0.5,
+                              cursor: 'not-allowed',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.4rem',
+                              padding: '0.75rem'
+                            }}
+                          >
+                            <Lock style={{ width: '15px', height: '15px' }} />
+                            <span>You are receiving this round — no payment needed</span>
+                          </button>
                         </div>
                       );
                     }
