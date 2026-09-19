@@ -118,7 +118,7 @@ export function clearToken(): void {
 
 // ─── HTTP Helper ────────────────────────────────────────────────────────────
 
-export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function apiFetch<T>(path: string, options: RequestInit = {}, _isRetry = false): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -151,10 +151,34 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     throw lastError || new Error('Network request failed');
   }
 
-  if (!response.ok) {
-    if (response.status === 401) {
-      clearToken();
+  // On 401, silently re-authenticate with stored wallet and retry once
+  if (response.status === 401 && !_isRetry) {
+    clearToken();
+    const storedAddress = typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_address') : null;
+    const storedLabel = typeof window !== 'undefined' ? localStorage.getItem('rosco_wallet_label') : null;
+    if (storedAddress) {
+      try {
+        // Use raw fetch (not apiFetch) to avoid circular call — /auth/session is public
+        const authRes = await fetch(`${API_BASE}/auth/session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nimiq_address: storedAddress, display_name: storedLabel }),
+        });
+        if (authRes.ok) {
+          const authData = await authRes.json();
+          if (authData.token) {
+            setToken(authData.token);
+            // Retry the original request with the fresh token
+            return apiFetch<T>(path, options, true);
+          }
+        }
+      } catch {
+        // Re-auth failed — fall through to throw the 401 error
+      }
     }
+  }
+
+  if (!response.ok) {
     let errorMessage = `HTTP ${response.status}`;
     try {
       const errBody = await response.json();
